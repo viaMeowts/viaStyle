@@ -1,0 +1,19 @@
+﻿{
+  "required": true,
+  "package": "com.viameowts.viastyle.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+  ],
+  "server": [
+    "ServerPlayerEntityMixin",
+    "DisplayEntityAccessor",
+    "TextDisplayEntityAccessor",
+    "EntityStartRidingMixin",
+    "PlayerManagerJoinMixin",
+    "PlayerEntityDisplayNameMixin",
+    "ServerPlayLeaveMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

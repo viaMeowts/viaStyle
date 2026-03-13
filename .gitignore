@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# macOS
+.DS_Store
+
+# Fabric Loom generated
+.loom-cache/
+
+# Temp files
+tmpclaude*
+build_err.txt
+
+# Decompiled MC stubs (reference only, not part of the project)
+net/
+
+# Generated scarpet scripts
+tools/generated_scripts/

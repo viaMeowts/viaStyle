@@ -1,29 +1,29 @@
-{
+﻿{
   "schemaVersion": 1,
-  "id": "viachat",
+  "id": "viastyle",
   "version": "${version}",
-  "name": "viaChat",
-  "description": "Adds local and global chat channels to Minecraft.",
+  "name": "viaStyle",
+  "description": "Chat system with local/global/staff channels, tab list styling, nick coloring & more.",
   "authors": [
     "viaMeowts"
   ],
   "contact": {
-    "homepage": "",
-    "sources": ""
+    "homepage": "https://github.com/viaMeowts/viaStyle",
+    "sources": "https://github.com/viaMeowts/viaStyle"
   },
   "license": "MIT",
-  "icon": "assets/viachat/icon.png",
+  "icon": "assets/viastyle/icon.png",
   "environment": "server",
   "entrypoints": {
     "main": [
-      "com.viameowts.viachat.viaChat"
+      "com.viameowts.viastyle.viaStyle"
     ],
     "server": [
-      "com.viameowts.viachat.viaChatServer"
+      "com.viameowts.viastyle.viaStyleServer"
     ]
   },
   "mixins": [
-    "viachat.mixins.json"
+    "viastyle.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=${loader_version}",
@@ -31,5 +31,12 @@
     "minecraft": "~${minecraft_version}",
     "java": ">=21"
   },
-  "suggests": {}
+  "suggests": {
+    "placeholder-api": "*",
+    "banhammer": "*",
+    "luckperms": "*",
+    "blockbot": "*",
+    "blockbot-api": "*",
+    "carpet": "*"
+  }
 }

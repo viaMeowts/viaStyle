@@ -1,16 +1,14 @@
 plugins {
-	id 'fabric-loom' version '1.10-SNAPSHOT'
+	id 'fabric-loom' version '1.15-SNAPSHOT'
 }
 
-sourceCompatibility = JavaVersion.VERSION_21
-targetCompatibility = JavaVersion.VERSION_21
-
 group = project.maven_group
-archivesBaseName = project.archives_base_name
+base.archivesName = project.archives_base_name
 version = project.mod_version + "+mc" + project.minecraft_version
 
 repositories {
 	maven { url 'https://maven.fabricmc.net/' }
+	maven { url 'https://maven.pb4.eu/release' }
     mavenCentral()
 }
 
@@ -20,6 +18,14 @@ dependencies {
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
+	// TextPlaceholderAPI is an optional runtime-only dependency resolved via reflection.
+	// No compile-time dependency needed — loaded reflectively if present at runtime.
+
+	// Vanish (DrexHD) — optional compile-time dependency.
+	// Fabric Loom remaps Mojang→Yarn so VanishAPI classes align with our ServerPlayerEntity, etc.
+	// VanishCompat.java is the entry point; it is only class-loaded when melius-vanish is present.
+	// Jar downloaded from modrinth to libs/ so no external maven access is required at build time.
+	modCompileOnly files('libs/vanish-1.6.6+1.21.10.jar')
 }
 
 processResources {
@@ -41,14 +47,14 @@ tasks.withType(JavaCompile).configureEach {
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
+		languageVersion = JavaLanguageVersion.of(25)
 	}
 	withSourcesJar()
 }
 
 jar {
 	from("LICENSE") {
-		rename { "${it}_${project.archivesBaseName}"}
+		rename { "${it}_${base.archivesName.get()}"}
 	}
 }
 
