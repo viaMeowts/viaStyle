@@ -8,7 +8,18 @@ version = project.mod_version + "+mc" + project.minecraft_version
 
 repositories {
 	maven { url 'https://maven.fabricmc.net/' }
-	maven { url 'https://maven.pb4.eu/release' }
+	maven {
+		url 'https://api.modrinth.com/maven'
+		content {
+			includeGroup 'maven.modrinth'
+		}
+	}
+	maven {
+		url 'https://maven.pb4.eu/release'
+		content {
+			includeGroup 'eu.pb4'
+		}
+	}
     mavenCentral()
 }
 
@@ -22,10 +33,9 @@ dependencies {
 	// No compile-time dependency needed — loaded reflectively if present at runtime.
 
 	// Vanish (DrexHD) — optional compile-time dependency.
-	// Fabric Loom remaps Mojang→Yarn so VanishAPI classes align with our ServerPlayerEntity, etc.
 	// VanishCompat.java is the entry point; it is only class-loaded when melius-vanish is present.
-	// Jar downloaded from modrinth to libs/ so no external maven access is required at build time.
-	modCompileOnly files('libs/vanish-1.6.6+1.21.10.jar')
+	// Official developer docs recommend using the Modrinth Maven artifact.
+	modCompileOnly "maven.modrinth:vanish:1.6.6+1.21.11"
 }
 
 processResources {

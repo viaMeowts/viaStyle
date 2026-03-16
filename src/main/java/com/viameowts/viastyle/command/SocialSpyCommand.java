@@ -53,7 +53,7 @@ public class SocialSpyCommand {
     }
 
     private static boolean hasPermission(ServerCommandSource source) {
-        if (source.hasPermissionLevel(2)) return true;
+        if (LuckPermsHelper.hasOpLevel(source, 2)) return true;
         if (source.getEntity() instanceof ServerPlayerEntity p) {
             return LuckPermsHelper.hasPermission(p.getUuid(), "viastyle.socialspy");
         }

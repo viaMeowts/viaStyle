@@ -53,19 +53,19 @@ public class TabListConfig {
     /** Header lines — each element is one line. Supports colour codes and placeholders. */
     public List<String> header = List.of(
             "",
-            "<gr:#5bc8f5:#ffffff:#a8ff78>    ✦ viaStyle ✦    </gr>",
-            "<gr:#5bc8f5:#a8ff78>┃ Server Network ┃</gr>",
+            "<gr:#5bc8f5:#ffffff:#a8ff78>    ✦ viaStyle ✦    ",
+            "<gr:#5bc8f5:#a8ff78>┃ Server Network ┃",
             "",
-            "<dark_aqua>Players: <gr:#a8ff78:#5bc8f5>{online}/{max}</gr>  <dark_aqua>TPS: <gr:#a8ff78:#5bc8f5>{tps}</gr>",
+            "<dark_aqua>Players: <gr:#a8ff78:#5bc8f5>{online}/{max}  <dark_aqua>TPS: <gr:#a8ff78:#5bc8f5>{tps}",
             ""
     );
 
     /** Footer lines — each element is one line. Supports colour codes and placeholders. */
     public List<String> footer = List.of(
             "",
-            "<gr:#5bc8f5:#a8ff78>                                        </gr>",
+            "<gr:#5bc8f5:#a8ff78>                                        ",
             "",
-            "<gray>Ping: <gr:#a8ff78:#5bc8f5>{ping}ms</gr><dark_gray>  •  <gray>Mode: <aqua>survival",
+            "<gray>Ping: <gr:#a8ff78:#5bc8f5>{ping}ms<dark_gray>  •  <gray>Mode: <aqua>survival",
             ""
     );
 

@@ -1,6 +1,6 @@
 ﻿# viaStyle
 
-Server-side Fabric mod for Minecraft 1.21.10. Replaces the vanilla chat system with a multi-channel setup, adds tab list styling, per-player nick colours, private messages, mentions, social spy, and optional integrations with LuckPerms, BlockBot, Carpet, PAPI, and BanHammer.
+Server-side Fabric mod for Minecraft 1.21.11. Replaces the vanilla chat system with a multi-channel setup, adds tab list styling, per-player nick colours, private messages, mentions, social spy, and optional integrations with LuckPerms, BlockBot, Carpet, PAPI, and BanHammer.
 
 No client mod required.
 
@@ -8,7 +8,7 @@ No client mod required.
 
 ## Requirements
 
-- Minecraft 1.21.10
+- Minecraft 1.21.11
 - Fabric Loader >= 0.16.12
 - Fabric API
 
@@ -24,7 +24,7 @@ Optional dependencies (auto-detected at runtime):
 
 ## Installation
 
-1. Drop `viastyle-<version>+mc1.21.10.jar` into the server's `mods/` folder.
+1. Drop `viastyle-<version>+mc1.21.11.jar` into the server's `mods/` folder.
 2. Start the server. A default config is generated at `config/viaStyle/viaStyle.toml`.
 3. Edit the config as needed, then run `/via reload` in-game or restart the server.
 

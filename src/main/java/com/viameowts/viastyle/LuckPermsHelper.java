@@ -1,6 +1,9 @@
 package com.viameowts.viastyle;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.command.permission.LeveledPermissionPredicate;
+import net.minecraft.command.permission.PermissionLevel;
+import net.minecraft.command.permission.PermissionPredicate;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -247,7 +250,27 @@ public final class LuckPermsHelper {
         if (source.getEntity() instanceof ServerPlayerEntity player) {
             if (hasPermission(player.getUuid(), permission)) return true;
         }
-        return source.hasPermissionLevel(opLevel);
+        return hasOpLevel(source, opLevel);
+    }
+
+    /**
+     * Minecraft 1.21.11 replaced {@code hasPermissionLevel(int)} with
+     * {@code PermissionPredicate} / {@code LeveledPermissionPredicate}.
+     */
+    public static boolean hasOpLevel(ServerCommandSource source, int opLevel) {
+        return source != null && hasOpLevel(source.getPermissions(), opLevel);
+    }
+
+    /**
+     * Player-side variant of {@link #hasOpLevel(ServerCommandSource, int)}.
+     */
+    public static boolean hasOpLevel(ServerPlayerEntity player, int opLevel) {
+        return player != null && hasOpLevel(player.getPermissions(), opLevel);
+    }
+
+    private static boolean hasOpLevel(PermissionPredicate predicate, int opLevel) {
+        return predicate instanceof LeveledPermissionPredicate leveled
+                && leveled.getLevel().isAtLeast(PermissionLevel.fromLevel(opLevel));
     }
 
     /**

@@ -109,7 +109,7 @@ public class ChatHandler {
 
     private static boolean hasStaffPermission(ServerPlayerEntity player) {
         if (LuckPermsHelper.hasPermission(player.getUuid(), "viastyle.staff")) return true;
-        return player.hasPermissionLevel(2);
+        return LuckPermsHelper.hasOpLevel(player, 2);
     }
 
     private static void handleStaffMessage(MinecraftServer server,
@@ -370,7 +370,7 @@ public class ChatHandler {
             if (p == sender) continue;
             if (spies.contains(p.getUuid())) {
                 // Re-check permission — it may have been revoked since spy was enabled
-                boolean hasSpyPerm = p.hasPermissionLevel(2)
+                boolean hasSpyPerm = LuckPermsHelper.hasOpLevel(p, 2)
                         || LuckPermsHelper.hasPermission(p.getUuid(), "viastyle.socialspy");
                 if (!hasSpyPerm) {
                     // Auto-disable spy for this player so the state stays clean
