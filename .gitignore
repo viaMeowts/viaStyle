@@ -32,3 +32,6 @@ net/
 
 # Generated scarpet scripts
 tools/generated_scripts/
+
+Instructions.md
+viapanel/

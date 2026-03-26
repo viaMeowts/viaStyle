@@ -419,21 +419,25 @@ public final class TabListManager {
                 if (closeAngle > i) {
                     String tagContent = input.substring(i + 1, closeAngle);
 
-                    // ── <gradient:#RRGGBB:#RRGGBB>text</gradient> ──
-                    if (tagContent.toLowerCase().startsWith("gradient:")) {
+                    String lowerTag = tagContent.toLowerCase();
+
+                    // ── <gradient:#...> or <gr:#...>text</gradient|gr> ──
+                    if (lowerTag.startsWith("gradient:") || lowerTag.startsWith("gr:")) {
                         // Flush buffer
                         if (buf.length() > 0) {
                             result.append(Text.literal(buf.toString()).setStyle(currentStyle));
                             buf.setLength(0);
                         }
-                        String gradientSpec = tagContent.substring("gradient:".length());
-                        int endTag = findClosingTag(input, closeAngle + 1, "gradient");
-                        if (endTag != -1) {
-                            String innerText = input.substring(closeAngle + 1, endTag);
+                        String gradientSpec = lowerTag.startsWith("gr:")
+                                ? tagContent.substring("gr:".length())
+                                : tagContent.substring("gradient:".length());
+                        ClosingTagMatch endTag = findClosingTagMatch(input, closeAngle + 1, "gradient", "gr");
+                        if (endTag != null) {
+                            String innerText = input.substring(closeAngle + 1, endTag.index());
                             // Parse inner text for legacy codes first, then apply gradient
                             String plainInner = stripCodes(innerText);
                             result.append(applyGradientToText(plainInner, gradientSpec, currentStyle));
-                            i = endTag + "</gradient>".length();
+                            i = endTag.index() + endTag.length();
                             continue;
                         }
                         // No closing tag — treat as literal
@@ -473,7 +477,6 @@ public final class TabListManager {
                     }
 
                     // ── <bold>, <italic>, etc. modifier tags ───────
-                    String lowerTag = tagContent.toLowerCase();
                     Style newStyle = tryParseFormattingTag(lowerTag, currentStyle);
                     if (newStyle != null) {
                         if (buf.length() > 0) {
@@ -631,18 +634,20 @@ public final class TabListManager {
                 if (closeAngle > i) {
                     String tagContent = input.substring(i + 1, closeAngle).toLowerCase();
 
-                    // <gradient:...>text</gradient> inside shadow
-                    if (tagContent.startsWith("gradient:")) {
+                    // <gradient:...> or <gr:...>text</gradient|gr> inside shadow
+                    if (tagContent.startsWith("gradient:") || tagContent.startsWith("gr:")) {
                         if (buf.length() > 0) {
                             result.append(Text.literal(buf.toString()).setStyle(currentStyle));
                             buf.setLength(0);
                         }
-                        String gradientSpec = tagContent.substring("gradient:".length());
-                        int endTag = findClosingTag(input, closeAngle + 1, "gradient");
-                        if (endTag != -1) {
-                            String innerText = stripCodes(input.substring(closeAngle + 1, endTag));
+                        String gradientSpec = tagContent.startsWith("gr:")
+                                ? tagContent.substring("gr:".length())
+                                : tagContent.substring("gradient:".length());
+                        ClosingTagMatch endTag = findClosingTagMatch(input, closeAngle + 1, "gradient", "gr");
+                        if (endTag != null) {
+                            String innerText = stripCodes(input.substring(closeAngle + 1, endTag.index()));
                             result.append(applyGradientToText(innerText, gradientSpec, currentStyle));
-                            i = endTag + "</gradient>".length();
+                            i = endTag.index() + endTag.length();
                             continue;
                         }
                     }
@@ -733,6 +738,26 @@ public final class TabListManager {
         int idx = input.toLowerCase().indexOf(closing, fromIdx);
         return idx;
     }
+
+    private static ClosingTagMatch findClosingTagMatch(String input, int fromIdx, String... tagNames) {
+        String lower = input.toLowerCase();
+        int bestIdx = -1;
+        int bestLen = 0;
+
+        for (String tagName : tagNames) {
+            String closing = "</" + tagName + ">";
+            int idx = lower.indexOf(closing, fromIdx);
+            if (idx >= 0 && (bestIdx < 0 || idx < bestIdx)) {
+                bestIdx = idx;
+                bestLen = closing.length();
+            }
+        }
+
+        if (bestIdx < 0) return null;
+        return new ClosingTagMatch(bestIdx, bestLen);
+    }
+
+    private record ClosingTagMatch(int index, int length) {}
 
     /**
      * Applies a per-character gradient to plain text.
