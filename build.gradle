@@ -28,6 +28,11 @@ dependencies {
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	def viaPanelApiJar = fileTree(dir: 'libs', include: ['viapanel-*.jar'])
+	if (viaPanelApiJar.isEmpty()) {
+		throw new GradleException("Missing standalone viaPanel jar in /libs. Build viapanel separately and copy viapanel-*.jar into libs/.")
+	}
+	modCompileOnly viaPanelApiJar
 
 	// TextPlaceholderAPI is an optional runtime-only dependency resolved via reflection.
 	// No compile-time dependency needed — loaded reflectively if present at runtime.

@@ -254,6 +254,25 @@ public final class LuckPermsHelper {
     }
 
     /**
+     * Player-friendly permission check with LuckPerms-first logic and OP fallback.
+     * Uses OP level 2 by default.
+     */
+    public static boolean checkPlayerPermission(ServerCommandSource source, String permission) {
+        return checkPlayerPermission(source, permission, 2);
+    }
+
+    /**
+     * Player-friendly permission check with LuckPerms-first logic and configurable OP fallback.
+     */
+    public static boolean checkPlayerPermission(ServerCommandSource source, String permission, int opLevel) {
+        if (source.getEntity() instanceof ServerPlayerEntity player) {
+            if (hasPermission(player.getUuid(), permission)) return true;
+            return hasOpLevel(source, opLevel);
+        }
+        return hasOpLevel(source, opLevel);
+    }
+
+    /**
      * Minecraft 1.21.11 replaced {@code hasPermissionLevel(int)} with
      * {@code PermissionPredicate} / {@code LeveledPermissionPredicate}.
      */

@@ -253,13 +253,13 @@ public final class TabListManager {
 
         // Replace simple placeholders first (not {player})
         String processed = format;
-        processed = processed.replace("{name}", player.getName().getString());
-        processed = processed.replace("{ping}", String.valueOf(getPlayerPing(player)));
-        processed = processed.replace("{lp_prefix}", legacyToAmpersand(LuckPermsHelper.getPrefix(player.getUuid())));
-        processed = processed.replace("{lp_suffix}", legacyToAmpersand(LuckPermsHelper.getSuffix(player.getUuid())));
+        processed = replaceToken(processed, "name", player.getName().getString());
+        processed = replaceToken(processed, "ping", String.valueOf(getPlayerPing(player)));
+        processed = replaceToken(processed, "lp_prefix", legacyToAmpersand(LuckPermsHelper.getPrefix(player.getUuid())));
+        processed = replaceToken(processed, "lp_suffix", legacyToAmpersand(LuckPermsHelper.getSuffix(player.getUuid())));
 
         // Handle {player} — inject coloured text
-        if (processed.contains("{player}")) {
+        if (containsPlayerToken(processed)) {
             return buildWithPlayerPlaceholder(processed, player);
         }
 
@@ -273,7 +273,7 @@ public final class TabListManager {
     private static MutableText buildWithPlayerPlaceholder(String template,
                                                            ServerPlayerEntity player) {
         MutableText result = Text.empty();
-        String[] parts = template.split("\\{player\\}", -1);
+        String[] parts = template.replace("%player%", "{player}").split("\\{player\\}", -1);
 
         for (int i = 0; i < parts.length; i++) {
             if (!parts[i].isEmpty()) {
@@ -302,27 +302,39 @@ public final class TabListManager {
         if (template == null) return "";
         String result = template;
 
-        result = result.replace("{name}", player.getName().getString());
+        result = replaceToken(result, "name", player.getName().getString());
         // Both our {online} token AND the PAPI %server:online% / %server:players% builtins
         // are replaced here with a per-viewer-aware vanish-aware count so the user doesn't
         // need to change their config to a custom placeholder.
         String visibleCount = String.valueOf(
                 server != null ? VanishHelper.countVisiblePlayers(server, player) : 0);
-        result = result.replace("{online}", visibleCount);
+        result = replaceToken(result, "online", visibleCount);
         result = result.replace("%server:online%", visibleCount);
         result = result.replace("%server:players%", visibleCount);
         result = result.replace("%viastyle:online%", visibleCount);
-        result = result.replace("{max}", String.valueOf(
-                server != null ? server.getPlayerManager().getMaxPlayerCount() : 20));
-        result = result.replace("{ping}", String.valueOf(getPlayerPing(player)));
-        result = result.replace("{tps}", formatTps(server));
-        result = result.replace("{lp_prefix}", legacyToAmpersand(
-                LuckPermsHelper.getPrefix(player.getUuid())));
-        result = result.replace("{lp_suffix}", legacyToAmpersand(
-                LuckPermsHelper.getSuffix(player.getUuid())));
+        result = replaceToken(result, "max", String.valueOf(
+            server != null ? server.getPlayerManager().getMaxPlayerCount() : 20));
+        result = replaceToken(result, "ping", String.valueOf(getPlayerPing(player)));
+        result = replaceToken(result, "tps", formatTps(server));
+        result = replaceToken(result, "mspt", formatMspt(server));
+        result = replaceToken(result, "lp_prefix", legacyToAmpersand(
+            LuckPermsHelper.getPrefix(player.getUuid())));
+        result = replaceToken(result, "lp_suffix", legacyToAmpersand(
+            LuckPermsHelper.getSuffix(player.getUuid())));
 
         return result;
     }
+
+        private static String replaceToken(String input, String token, String value) {
+        String safeValue = value == null ? "" : value;
+        return input
+            .replace("{" + token + "}", safeValue)
+            .replace("%" + token + "%", safeValue);
+        }
+
+        private static boolean containsPlayerToken(String input) {
+        return input.contains("{player}") || input.contains("%player%");
+        }
 
     private static String legacyToAmpersand(String input) {
         if (input == null) return "";
@@ -346,6 +358,16 @@ public final class TabListManager {
         else if (tps >= 15.0) colour = "&e";
         else colour = "&c";
         return colour + String.format("%.1f", tps);
+    }
+
+    private static String formatMspt(MinecraftServer server) {
+        if (server == null) return "N/A";
+        double mspt = server.getAverageTickTime();
+        String colour;
+        if (mspt <= 50.0) colour = "&a";      // green: normal
+        else if (mspt <= 75.0) colour = "&e"; // yellow: high
+        else colour = "&c";                    // red: very high
+        return colour + String.format("%.1f", mspt);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

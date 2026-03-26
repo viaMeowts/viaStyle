@@ -2,6 +2,8 @@
 
 Server-side Fabric mod for Minecraft 1.21.11. Replaces the vanilla chat system with a multi-channel setup, adds tab list styling, per-player nick colours, private messages, mentions, social spy, and optional integrations with LuckPerms, BlockBot, Carpet, PAPI, and BanHammer.
 
+viaStyle now uses a separate companion mod, **viaPanel**, for in-game configuration UI.
+
 No client mod required.
 
 ---
@@ -11,6 +13,7 @@ No client mod required.
 - Minecraft 1.21.11
 - Fabric Loader >= 0.16.12
 - Fabric API
+- viaPanel (required for `/viapanel` config UI)
 
 Optional dependencies (auto-detected at runtime):
 
@@ -24,15 +27,23 @@ Optional dependencies (auto-detected at runtime):
 
 ## Installation
 
-1. Drop `viastyle-<version>+mc1.21.11.jar` into the server's `mods/` folder.
+1. Drop `viastyle-<version>+mc1.21.11.jar` and `viapanel-<version>+mc1.21.11.jar` into the server's `mods/` folder.
 2. Start the server. A default config is generated at `config/viaStyle/viaStyle.toml`.
 3. Edit the config as needed, then run `/via reload` in-game or restart the server.
+
+## Build
+
+`viapanel` is built as a separate standalone mod.
+
+1. Build viaPanel: `./gradlew -p viapanel build`
+2. Copy generated `viapanel-*.jar` from `viapanel/build/libs/` to root `libs/`
+3. Build viaStyle: `./gradlew build`
 
 ---
 
 ## Configuration
 
-All settings live in `config/viaStyle/viaStyle.toml`. The file is human-readable TOML. Missing keys are filled with defaults on next load. All settings can also be changed at runtime through the `/via admin` panel.
+All settings live in `config/viaStyle/viaStyle.toml`. The file is human-readable TOML. Missing keys are filled with defaults on next load. All settings can also be changed at runtime through the `/viapanel` UI.
 
 ### [local]
 
@@ -248,15 +259,17 @@ Set `useScarpetEvents = true` to fire Carpet's `PLAYER_MESSAGE` event for every 
 
 | command | permission | description |
 |---|---|---|
-| `/via reload` | `viastyle.admin` | Reload config from disk |
-| `/via admin` | `viastyle.admin` | Open the in-game admin panel |
-| `/msg <player> <message>` | any | Send a private message |
-| `/reply <message>` | any | Reply to the last PM sender |
-| `/chatmode` | any | Toggle default channel (local / global) |
-| `/ignore <player>` | any | Toggle ignoring a player |
-| `/nickcolor [player] <colour\|reset>` | `viastyle.nickcolor` / `viastyle.admin` | Set or clear nick colour |
-| `/socialspy` | `viastyle.socialspy` | Toggle social spy |
-| `/viasuper [text]` | `viastyle.admin` | Broadcast a title/subtitle message |
+| `/viaStyle reload` | `viastyle.command.reload` (or OP 2) | Reload config from disk |
+| `/viaStyle local`, `/viaStyle global` | `viastyle.command.chatmode` | Toggle default chat mode |
+| `/viaStyle lang` | `viastyle.command.lang` | Show or change language |
+| `/viapanel` | `viastyle.panel` (or OP 2) | Open viaPanel and then the viaStyle config pages |
+| `/msg <player> <message>` | `viastyle.command.msg` (or OP 2) | Send a private message |
+| `/reply <message>` | `viastyle.command.reply` (or OP 2) | Reply to the last PM sender |
+| `/ignore <player>`, `/unignore <player>` | `viastyle.command.ignore` (or OP 2) | Toggle ignoring a player |
+| `/nickcolor set|remove|reload` | `viastyle.command.nickcolor` (or OP 2) | Manage nick colour overrides |
+| `/nickcolor preview` | `viastyle.command.nickcolor.preview` (or OP 2) | Preview a color format |
+| `/socialspy` | `viastyle.command.socialspy` (legacy: `viastyle.socialspy`) | Toggle social spy |
+| `/viasuper [text]` | `viastyle.command.viasuper` (or OP 2) | Broadcast a title/subtitle message |
 
 ---
 
@@ -264,10 +277,20 @@ Set `useScarpetEvents = true` to fire Carpet's `PLAYER_MESSAGE` event for every 
 
 | node | description |
 |---|---|
-| `viastyle.admin` | Full admin access: config reload, admin panel, viasuper, set other players nick colours |
+| `viastyle.command.reload` | Access to `/viaStyle reload` |
+| `viastyle.command.chatmode` | Access to `/viaStyle local|global` and mode status |
+| `viastyle.command.lang` | Access to `/viaStyle lang` |
+| `viastyle.command.msg` | Access to `/msg`, `/m`, `/w`, `/tell` |
+| `viastyle.command.reply` | Access to `/reply`, `/r` |
+| `viastyle.command.ignore` | Access to `/ignore`, `/unignore` |
+| `viastyle.command.nickcolor` | Access to `/nickcolor set|remove|reload` |
+| `viastyle.command.nickcolor.preview` | Access to `/nickcolor preview` |
+| `viastyle.command.socialspy` | Access to `/socialspy` |
+| `viastyle.command.viasuper` | Access to `/viaSuper` |
 | `viastyle.staff` | Write and read staff chat |
-| `viastyle.socialspy` | Toggle social spy |
-| `viastyle.nickcolor` | Set your own nick colour |
+| `viastyle.panel` | Access to viaPanel pages for viaStyle |
+| `viastyle.pm.vanished` | Allows PM to vanished players |
+| `viastyle.socialspy` | Legacy social spy node (still supported) |
 
 ---
 

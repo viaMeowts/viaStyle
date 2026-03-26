@@ -60,6 +60,7 @@ public class PrivateMsgCommand {
 
         // /msg <player> <message>  (also registered as /m and /w)
         var msgNode = CommandManager.literal("msg")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.msg"))
                 .then(CommandManager.argument("player", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
                             ServerPlayerEntity sender =
@@ -82,6 +83,7 @@ public class PrivateMsgCommand {
 
         // /reply <message>  (also /r)
         var replyNode = CommandManager.literal("reply")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.reply"))
                 .then(CommandManager.argument("message", StringArgumentType.greedyString())
                         .executes(PrivateMsgCommand::reply))
                 .build();

@@ -20,6 +20,7 @@ public class ChatModeCommand {
                                 CommandRegistryAccess registryAccess,
                                 CommandManager.RegistrationEnvironment environment) {
         dispatcher.register(CommandManager.literal("viaStyle")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.chatmode"))
                 .then(CommandManager.literal("local")
                         .then(CommandManager.literal("!")
                                 .executes(ChatModeCommand::setModeLocal)
@@ -31,6 +32,7 @@ public class ChatModeCommand {
                         )
                 )
                 .then(CommandManager.literal("lang")
+                    .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.lang"))
                         .then(CommandManager.argument("language", StringArgumentType.word())
                                 .suggests((context, builder) -> {
                                     builder.suggest("en");

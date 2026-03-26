@@ -6,7 +6,7 @@ import com.viameowts.viastyle.command.NickColorCommand;
 import com.viameowts.viastyle.command.PrivateMsgCommand;
 import com.viameowts.viastyle.command.SocialSpyCommand;
 import com.viameowts.viastyle.command.ViaSuperCommand;
-import com.viameowts.viastyle.command.AdminPanelCommand;
+import com.viameowts.viapanel.api.ViaPanelApi;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
@@ -40,7 +40,7 @@ public class viaStyleServer implements DedicatedServerModInitializer {
         CommandRegistrationCallback.EVENT.register(NickColorCommand::register);
         CommandRegistrationCallback.EVENT.register(IgnoreCommand::register);
         CommandRegistrationCallback.EVENT.register(SocialSpyCommand::register);
-        CommandRegistrationCallback.EVENT.register(AdminPanelCommand::register);
+        ViaPanelApi.register(new ViaStylePanelProvider());
         viaStyle.LOGGER.info("Registered viaStyle commands.");
 
         // ── Tick-based tab list + nametag updates ──────────────────────────
@@ -65,14 +65,11 @@ public class viaStyleServer implements DedicatedServerModInitializer {
                 TabListManager.updateAll(server);
                 NametagManager.updateAll(server);
 
-                // Send custom join / first-join message (suppress for vanished players)
-                if (!VanishHelper.isVanished(joinedPlayer)) {
-                    String fmt = firstJoin
-                            ? viaStyle.CONFIG.firstJoinFormat
-                            : viaStyle.CONFIG.joinFormat;
-                    Text msg = buildJoinLeaveMessage(fmt, joinedPlayer);
-                    server.getPlayerManager().broadcast(msg, false);
-                }
+                String fmt = firstJoin
+                        ? viaStyle.CONFIG.firstJoinFormat
+                        : viaStyle.CONFIG.joinFormat;
+                Text msg = safeJoinLeaveMessage(fmt, joinedPlayer, true);
+                broadcastJoinLeaveRespectVanish(server, joinedPlayer, msg);
             });
 
             // Delayed re-apply (1 second later) for LP async load
@@ -113,12 +110,6 @@ public class viaStyleServer implements DedicatedServerModInitializer {
             ServerPlayerEntity leavingPlayer = handler.getPlayer();
             UUID leavingUuid = leavingPlayer.getUuid();
 
-            // DISCONNECT fires on the Netty thread, but entity/scoreboard operations
-            // must run on the server thread (C2ME and vanilla both enforce this).
-            // Snapshot everything we need before the lambda captures it.
-            boolean wasVanished = VanishHelper.isVanished(leavingPlayer);
-            Text leaveMsg = wasVanished ? null : buildJoinLeaveMessage(viaStyle.CONFIG.leaveFormat, leavingPlayer);
-
             // Thread-safe map removals are fine immediately on any thread.
             NickColorManager.invalidate(leavingUuid);
             viaStyle.playerChatModePref.remove(leavingUuid);
@@ -126,9 +117,8 @@ public class viaStyleServer implements DedicatedServerModInitializer {
 
             // Defer entity/scoreboard operations to the server thread.
             server.execute(() -> {
-                if (leaveMsg != null) {
-                    server.getPlayerManager().broadcast(leaveMsg, false);
-                }
+                Text leaveMsg = safeJoinLeaveMessage(viaStyle.CONFIG.leaveFormat, leavingPlayer, false);
+                broadcastJoinLeaveRespectVanish(server, leavingPlayer, leaveMsg);
                 NametagManager.removePlayer(leavingPlayer, server);
             });
         });
@@ -182,12 +172,16 @@ public class viaStyleServer implements DedicatedServerModInitializer {
      * Package-private so VanishCompat can use it for vanish/unvanish messages.
      */
     static Text buildJoinLeaveMessage(String format, ServerPlayerEntity player) {
+        if (format == null) {
+            format = "{name}";
+        }
         MutableText coloredName = NickColorManager.getColoredName(player);
         if (coloredName == null) {
             coloredName = Text.literal(player.getName().getString());
         }
 
-        String[] parts = format.split("\\{name}", -1);
+        String normalized = format.replace("%name%", "{name}");
+        String[] parts = normalized.split("\\{name}", -1);
         MutableText result = Text.empty();
         for (int i = 0; i < parts.length; i++) {
             if (!parts[i].isEmpty()) {
@@ -198,6 +192,30 @@ public class viaStyleServer implements DedicatedServerModInitializer {
             }
         }
         return result;
+    }
+
+    private static Text safeJoinLeaveMessage(String format, ServerPlayerEntity player, boolean join) {
+        String finalFormat = format;
+        if (finalFormat == null || finalFormat.isBlank()) {
+            finalFormat = join ? "&a+ &r{name}" : "&c- &r{name}";
+        }
+        return buildJoinLeaveMessage(finalFormat, player);
+    }
+
+    private static void broadcastJoinLeaveRespectVanish(net.minecraft.server.MinecraftServer server,
+                                                        ServerPlayerEntity actor,
+                                                        Text message) {
+        if (server == null || actor == null || message == null || message.getString().isBlank()) {
+            return;
+        }
+
+        UUID actorUuid = actor.getUuid();
+        boolean actorVanished = VanishHelper.isVanished(actor);
+        for (ServerPlayerEntity recipient : server.getPlayerManager().getPlayerList()) {
+            if (recipient.getUuid().equals(actorUuid)) continue;
+            if (actorVanished && !VanishHelper.canSeePlayer(actor, recipient)) continue;
+            recipient.sendMessage(message, false);
+        }
     }
 
 

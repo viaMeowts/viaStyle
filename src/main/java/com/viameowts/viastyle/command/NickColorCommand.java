@@ -63,6 +63,7 @@ public class NickColorCommand {
                         .executes(NickColorCommand::reload))
                 // /nickcolor preview <spec>
                 .then(CommandManager.literal("preview")
+                        .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.nickcolor.preview"))
                         .then(CommandManager.argument("spec", StringArgumentType.greedyString())
                                 .executes(NickColorCommand::preview)))
         );

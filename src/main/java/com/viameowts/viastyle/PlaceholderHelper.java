@@ -45,7 +45,7 @@ public final class PlaceholderHelper {
      * {@link PapiPlaceholderProvider}.
      */
     public static void init() {
-        if (!FabricLoader.getInstance().isModLoaded("placeholder-api")) {
+        if (!isPlaceholderApiModLoaded()) {
             viaStyle.LOGGER.info("[viaStyle] TextPlaceholderAPI not found => PAPI support disabled.");
             return;
         }
@@ -57,6 +57,13 @@ public final class PlaceholderHelper {
         } catch (Throwable t) {
             viaStyle.LOGGER.warn("[viaStyle] Failed to initialise TextPlaceholderAPI: {}", t.getMessage());
         }
+    }
+
+    private static boolean isPlaceholderApiModLoaded() {
+        FabricLoader loader = FabricLoader.getInstance();
+        return loader.isModLoaded("placeholder-api")
+                || loader.isModLoaded("text-placeholder-api")
+                || loader.isModLoaded("text_placeholder_api");
     }
 
     /** Returns {@code true} when PAPI is installed AND the config toggle is on. */

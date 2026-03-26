@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.viameowts.viastyle.IgnoreManager;
 import com.viameowts.viastyle.Lang;
+import com.viameowts.viastyle.LuckPermsHelper;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -28,6 +29,7 @@ public class IgnoreCommand {
                                 CommandRegistryAccess registryAccess,
                                 CommandManager.RegistrationEnvironment environment) {
         dispatcher.register(CommandManager.literal("ignore")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore"))
                 .then(CommandManager.literal("list")
                         .executes(IgnoreCommand::listIgnored))
                 .then(CommandManager.argument("player", StringArgumentType.word())
@@ -42,6 +44,7 @@ public class IgnoreCommand {
         );
 
         dispatcher.register(CommandManager.literal("unignore")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore"))
                 .then(CommandManager.argument("player", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
                             if (ctx.getSource().getEntity() instanceof ServerPlayerEntity p) {

@@ -203,6 +203,8 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
     @Override
     public Text parseFormat(String input, ServerPlayerEntity player) {
         try {
+            input = normalizePercentAliasSyntax(input);
+
             // Step 1: convert &-codes → <tags>
             String converted = legacyToMiniMessage(input);
 
@@ -289,5 +291,50 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
             }
         }
         return false;
+    }
+
+    private static String normalizePercentAliasSyntax(String input) {
+        if (input == null || input.isEmpty() || input.indexOf('%') < 0) return input;
+
+        String normalized = input;
+        normalized = normalized.replace("%viastyle_online%", "%viastyle:online%");
+        normalized = normalized.replace("%server_online%", "%server:online%");
+        normalized = normalized.replace("%server_players%", "%server:players%");
+        normalized = normalized.replace("%server_max_players%", "%server:max_players%");
+
+        StringBuilder out = new StringBuilder(normalized.length());
+        int i = 0;
+        while (i < normalized.length()) {
+            int open = normalized.indexOf('%', i);
+            if (open < 0) {
+                out.append(normalized, i, normalized.length());
+                break;
+            }
+            int close = normalized.indexOf('%', open + 1);
+            if (close < 0) {
+                out.append(normalized, i, normalized.length());
+                break;
+            }
+
+            out.append(normalized, i, open + 1);
+            String token = normalized.substring(open + 1, close);
+            String converted = convertAliasToken(token);
+            out.append(converted != null ? converted : token);
+            out.append('%');
+            i = close + 1;
+        }
+        return out.toString();
+    }
+
+    private static String convertAliasToken(String token) {
+        if (token == null || token.isEmpty() || token.indexOf(':') >= 0) return token;
+        int underscore = token.indexOf('_');
+        if (underscore <= 0 || underscore >= token.length() - 1) return token;
+
+        String namespace = token.substring(0, underscore);
+        String key = token.substring(underscore + 1);
+        if (namespace.isEmpty() || key.isEmpty()) return token;
+
+        return namespace + ':' + key;
     }
 }
