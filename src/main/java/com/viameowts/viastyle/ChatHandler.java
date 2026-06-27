@@ -15,6 +15,7 @@ import net.minecraft.util.Formatting;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +61,6 @@ public class ChatHandler {
                 String content = rawMessage.substring(staffTrigger.length()).trim();
                 if (!content.isEmpty()) {
                     handleStaffMessage(server, sender, content);
-                    ScarpetHelper.firePlayerMessage(sender, content);
                 }
             } else {
                 sender.sendMessage(Lang.get("chat.staff_no_permission"), false);
@@ -91,8 +91,8 @@ public class ChatHandler {
             handleLocalMessage(server, sender, messageContent);
         }
 
-        // ── Scarpet event ──────────────────────────────────────────────────
-        ScarpetHelper.firePlayerMessage(sender, messageContent);
+        // ── Reset AFK timer ────────────────────────────────────────────────
+        AfkManager.onActivity(sender.getUuid());
     }
 
     // ── Console logging helper ──────────────────────────────────────────────────
@@ -108,8 +108,7 @@ public class ChatHandler {
     // ── Staff permission / handler ─────────────────────────────────────────────
 
     private static boolean hasStaffPermission(ServerPlayerEntity player) {
-        if (LuckPermsHelper.hasPermission(player.getUuid(), "viastyle.staff")) return true;
-        return LuckPermsHelper.hasOpLevel(player, 2);
+        return LuckPermsHelper.checkPlayerPermission(player, "viastyle.staff", 2);
     }
 
     private static void handleStaffMessage(MinecraftServer server,
@@ -160,9 +159,8 @@ public class ChatHandler {
     }
 
     /**
-     * Parses a legacy-colour-coded string ({@code §} and {@code &} codes) into a
-     * styled {@link MutableText}. Useful for LuckPerms prefixes/suffixes that may
-     * contain legacy formatting codes.
+     * Parses a formatting string into a styled {@link MutableText}.
+     * Used for LuckPerms prefixes/suffixes and supports MiniMessage tags.
      */
     private static MutableText parseLegacyColors(String input) {
         if (input == null || input.isEmpty()) return Text.empty();
@@ -262,12 +260,14 @@ public class ChatHandler {
         Text finalMsg = PlaceholderHelper.process(assembled, sender);
 
         List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
+        List<ServerPlayerEntity> deliveredRecipients = new ArrayList<>();
         ServerWorld senderWorld = sender.getEntityWorld();
         int recipientCount = 0;
 
         for (ServerPlayerEntity recipient : players) {
             if (recipient == sender) {
                 recipient.sendMessage(finalMsg, false);
+                deliveredRecipients.add(recipient);
                 continue;
             }
             // Skip if recipient ignores sender
@@ -277,6 +277,7 @@ public class ChatHandler {
             if (recipient.getEntityWorld() == senderWorld
                     && sender.squaredDistanceTo(recipient) <= radiusSquared) {
                 recipient.sendMessage(finalMsg, false);
+                deliveredRecipients.add(recipient);
                 recipientCount++;
             }
         }
@@ -289,7 +290,7 @@ public class ChatHandler {
         }
 
         // @mentions
-        MentionHandler.processMentions(server, sender, messageContent);
+        MentionHandler.processMentions(server, sender, messageContent, deliveredRecipients);
 
         // SocialSpy relay for local
         relaySocialSpy(server, sender, messageContent, SocialSpyManager.Channel.LOCAL, "Local");
@@ -339,8 +340,11 @@ public class ChatHandler {
                         Text.literal("/m " + playerName).formatted(Formatting.GRAY))));
         tokens.put("name", nameText);
 
-        // Message with @mention highlighting
-        tokens.put("message", MentionHandler.highlightMentions(messageContent, messageColor, server, sender));
+        ChatSharePlaceholders.ProcessedMessage processed =
+            ChatSharePlaceholders.processMessage(messageContent, sender, server, messageColor);
+
+        // Message with [item]/[pos]/[inv]/[ec] replacements and mention highlighting
+        tokens.put("message", processed.component());
         return tokens;
     }
 
@@ -356,22 +360,38 @@ public class ChatHandler {
                                        String content,
                                        SocialSpyManager.Channel channel,
                                        String channelLabel) {
+        relaySocialSpy(server, sender != null ? sender.getName().getString() : "?", content, channel, channelLabel, sender);
+    }
+
+    public static void relaySocialSpy(MinecraftServer server,
+                                       String senderName,
+                                       String content,
+                                       SocialSpyManager.Channel channel,
+                                       String channelLabel) {
+        relaySocialSpy(server, senderName, content, channel, channelLabel, null);
+    }
+
+    private static void relaySocialSpy(MinecraftServer server,
+                                        String senderName,
+                                        String content,
+                                        SocialSpyManager.Channel channel,
+                                        String channelLabel,
+                                        ServerPlayerEntity excludeSender) {
         if (viaStyle.CONFIG == null) return;
 
         Set<java.util.UUID> spies = SocialSpyManager.getSpiesForChannel(channel);
         if (spies.isEmpty()) return;
 
         Text spyMsg = Text.literal("[Spy/" + channelLabel + "] ").formatted(Formatting.DARK_GRAY)
-                .append(Text.literal(sender.getName().getString()).formatted(Formatting.GRAY))
+                .append(Text.literal(senderName).formatted(Formatting.GRAY))
                 .append(Text.literal(": ").formatted(Formatting.DARK_GRAY))
                 .append(Text.literal(content).formatted(Formatting.GRAY));
 
         for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
-            if (p == sender) continue;
+            if (p == excludeSender) continue;
             if (spies.contains(p.getUuid())) {
                 // Re-check permission — it may have been revoked since spy was enabled
-                boolean hasSpyPerm = LuckPermsHelper.hasOpLevel(p, 2)
-                        || LuckPermsHelper.hasPermission(p.getUuid(), "viastyle.socialspy");
+                boolean hasSpyPerm = LuckPermsHelper.checkPlayerPermission(p, "viastyle.socialspy", 2);
                 if (!hasSpyPerm) {
                     // Auto-disable spy for this player so the state stays clean
                     SocialSpyManager.disableAll(p.getUuid());

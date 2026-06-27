@@ -20,18 +20,20 @@ public class Lang {
 
     // ── Color palette ──────────────────────────────────────────────────────
     /** Top-level headings (panel title, etc.) */
-    private static final TextColor COLOR_TOP    = TextColor.fromRgb(0xfabd39);
+        private static final TextColor COLOR_TOP    = TextColor.fromRgb(0xFFC64C);
     /** Mid-level headings (page titles, labels) */
-    private static final TextColor COLOR_MID    = TextColor.fromRgb(0xfaca64);
+        private static final TextColor COLOR_MID    = TextColor.fromRgb(0xFCDE9D);
     /** Normal text (descriptions, field names) */
-    private static final TextColor COLOR_NORMAL = TextColor.fromRgb(0xfcde9d);
+        private static final TextColor COLOR_NORMAL = TextColor.fromRgb(0xD9D0D5);
     /** Positive / ON */
-    private static final TextColor COLOR_GREEN  = TextColor.fromRgb(0x0ac467);
+        private static final TextColor COLOR_GREEN  = TextColor.fromRgb(0x98FB98);
     /** Negative / OFF / errors */
-    private static final TextColor COLOR_RED    = TextColor.fromRgb(0xcf324c);
+        private static final TextColor COLOR_RED    = TextColor.fromRgb(0xFF5555);
 
     private static final Map<String, Text> enMessages = new HashMap<>();
     private static final Map<String, Text> ruMessages = new HashMap<>();
+    private static final Map<String, String> enRaw = new HashMap<>();
+    private static final Map<String, String> ruRaw = new HashMap<>();
 
     public static void initialize() {
         // ── General errors ─────────────────────────────────────────────────
@@ -87,6 +89,96 @@ public class Lang {
         put("chat.staff_no_permission",
                 styled("You don't have permission to use staff chat.", Formatting.RED),
                 styled("У вас нет разрешения на использование стаф-чата.", Formatting.RED));
+        put("chat.placeholder.cooldown",
+                styled("You can use chat placeholders again in ", Formatting.RED),
+                styled("Вы сможете снова использовать чат-плейсхолдеры через ", Formatting.RED));
+        put("chat.placeholder.no_permission",
+                styled("You don't have permission to use this chat placeholder.", Formatting.RED),
+                styled("У вас нет прав на использование этого чат-плейсхолдера.", Formatting.RED));
+        put("chat.placeholder.no_item",
+                styled("You have no item in hand to share.", Formatting.RED),
+                styled("У вас нет предмета в руках для отправки.", Formatting.RED));
+        put("chat.placeholder.view_expired",
+                styled("This shared view has expired or does not exist.", Formatting.RED),
+                styled("Этот общий просмотр истек или не существует.", Formatting.RED));
+
+        // ── Broadcast (/bc) ──────────────────────────────────────────────
+        put("broadcast.cooldown",
+                styled("[viaStyle] Cooldown: ", Formatting.RED),
+                styled("[viaStyle] Кулдаун: ", Formatting.RED));
+        put("broadcast.cooldown_suffix",
+                styled("s", Formatting.RED),
+                styled("с", Formatting.RED));
+        put("broadcast.feedback_prefix",
+                styled("[viaStyle] Broadcast sent to ", Formatting.GREEN),
+                styled("[viaStyle] Объявление отправлено ", Formatting.GREEN));
+        put("broadcast.feedback_suffix",
+                styled(" player(s).", Formatting.GREEN),
+                styled(" игрок(ам).", Formatting.GREEN));
+
+        // ── JoinLeave self command ───────────────────────────────────────
+        put("joinleave.self.show_join",
+                styled("[joinleave] join: ", Formatting.YELLOW),
+                styled("[joinleave] вход: ", Formatting.YELLOW));
+        put("joinleave.self.show_leave",
+                styled("[joinleave] leave: ", Formatting.YELLOW),
+                styled("[joinleave] выход: ", Formatting.YELLOW));
+        put("joinleave.self.default_marker",
+                styled("(default)", Formatting.DARK_GRAY),
+                styled("(по умолчанию)", Formatting.DARK_GRAY));
+        put("joinleave.self.saved_join",
+                styled("[joinleave] Saved personal join format.", Formatting.GREEN),
+                styled("[joinleave] Личный формат входа сохранен.", Formatting.GREEN));
+        put("joinleave.self.saved_leave",
+                styled("[joinleave] Saved personal leave format.", Formatting.GREEN),
+                styled("[joinleave] Личный формат выхода сохранен.", Formatting.GREEN));
+        put("joinleave.self.updated",
+                styled("[joinleave] Personal override updated.", Formatting.GREEN),
+                styled("[joinleave] Личные переопределения обновлены.", Formatting.GREEN));
+        put("joinleave.admin.player_not_found",
+                styled("[joinleave] Player not found online.", Formatting.RED),
+                styled("[joinleave] Игрок не найден в онлайне.", Formatting.RED));
+        put("joinleave.admin.show_player_join",
+                styled("[joinleave] player join ", Formatting.YELLOW),
+                styled("[joinleave] вход игрока ", Formatting.YELLOW));
+        put("joinleave.admin.show_player_leave",
+                styled("[joinleave] player leave ", Formatting.YELLOW),
+                styled("[joinleave] выход игрока ", Formatting.YELLOW));
+        put("joinleave.admin.show_group_join",
+                styled("[joinleave] group join ", Formatting.YELLOW),
+                styled("[joinleave] вход группы ", Formatting.YELLOW));
+        put("joinleave.admin.show_group_leave",
+                styled("[joinleave] group leave ", Formatting.YELLOW),
+                styled("[joinleave] выход группы ", Formatting.YELLOW));
+        put("joinleave.admin.saved_player_join",
+                styled("[joinleave] Saved player join format for ", Formatting.GREEN),
+                styled("[joinleave] Формат входа сохранен для игрока ", Formatting.GREEN));
+        put("joinleave.admin.saved_player_leave",
+                styled("[joinleave] Saved player leave format for ", Formatting.GREEN),
+                styled("[joinleave] Формат выхода сохранен для игрока ", Formatting.GREEN));
+        put("joinleave.admin.saved_group_join",
+                styled("[joinleave] Saved group join format for ", Formatting.GREEN),
+                styled("[joinleave] Формат входа сохранен для группы ", Formatting.GREEN));
+        put("joinleave.admin.saved_group_leave",
+                styled("[joinleave] Saved group leave format for ", Formatting.GREEN),
+                styled("[joinleave] Формат выхода сохранен для группы ", Formatting.GREEN));
+        put("joinleave.admin.removed_player",
+                styled("[joinleave] Removed player overrides for ", Formatting.GREEN),
+                styled("[joinleave] Переопределения игрока удалены для ", Formatting.GREEN));
+        put("joinleave.admin.removed_group",
+                styled("[joinleave] Removed group overrides for ", Formatting.GREEN),
+                styled("[joinleave] Переопределения группы удалены для ", Formatting.GREEN));
+
+        // ── ViaSuper ─────────────────────────────────────────────────────
+        put("viasuper.sent_prefix",
+                styled("[viaStyle] Title sent (", Formatting.GREEN),
+                styled("[viaStyle] Заголовок отправлен (", Formatting.GREEN));
+        put("viasuper.sent_words_suffix",
+                styled(" words) to ", Formatting.GREEN),
+                styled(" слов) для ", Formatting.GREEN));
+        put("viasuper.sent_players_suffix",
+                styled(" player(s).", Formatting.GREEN),
+                styled(" игрок(ов).", Formatting.GREEN));
 
         // ── Ignore ─────────────────────────────────────────────────────────
         put("ignore.added",
@@ -127,6 +219,9 @@ public class Lang {
         put("pm.error.ignored",
                 styled("That player is ignoring you.", Formatting.RED),
                 styled("Этот игрок игнорирует вас.", Formatting.RED));
+        put("pm.console_name",
+                Text.literal("Console"),
+                Text.literal("Консоль"));
 
         // ── Mentions ───────────────────────────────────────────────────────
         put("mention.notify",
@@ -166,14 +261,38 @@ public class Lang {
         put("spy.click_disable_all",
                 styled("Click to disable all", Formatting.RED),
                 styled("Нажмите чтобы выключить все", Formatting.RED));
+        put("spy.state_on_tag",
+                styled("[ON]", Formatting.GREEN),
+                styled("[ВКЛ]", Formatting.GREEN));
+        put("spy.state_off_tag",
+                styled("[OFF]", Formatting.RED),
+                styled("[ВЫКЛ]", Formatting.RED));
+        put("spy.state_on",
+                styled("ON", Formatting.GREEN),
+                styled("ВКЛ", Formatting.GREEN));
+        put("spy.state_off",
+                styled("OFF", Formatting.RED),
+                styled("ВЫКЛ", Formatting.RED));
+        put("spy.toggle_prefix",
+                styled("SocialSpy ", Formatting.GOLD),
+                styled("SocialSpy ", Formatting.GOLD));
 
         // ── Admin Panel ────────────────────────────────────────────────────
         put("panel.title",
                 hex("viaStyle Admin Panel", COLOR_TOP),
                 hex("Панель управления viaStyle", COLOR_TOP));
-        put("panel.page.chat",
-                hex("Chat Settings", COLOR_MID),
-                hex("Настройки чата", COLOR_MID));
+        put("panel.page.local",
+                hex("Local Chat", COLOR_MID),
+                hex("Локальный чат", COLOR_MID));
+        put("panel.page.global",
+                hex("Global Chat", COLOR_MID),
+                hex("Глобальный чат", COLOR_MID));
+        put("panel.page.staff",
+                hex("Staff Chat", COLOR_MID),
+                hex("Стаф-чат", COLOR_MID));
+        put("panel.page.chat_format",
+                hex("Chat Formatting", COLOR_MID),
+                hex("Форматирование чата", COLOR_MID));
         put("panel.page.timestamp",
                 hex("Timestamp", COLOR_MID),
                 hex("Метка времени", COLOR_MID));
@@ -181,8 +300,11 @@ public class Lang {
                 hex("Integrations", COLOR_MID),
                 hex("Интеграции", COLOR_MID));
         put("panel.page.nickcolor",
-                hex("Nick Colour & Nametag", COLOR_MID),
-                hex("Цвет ника и неймтег", COLOR_MID));
+                hex("Nick Colors", COLOR_MID),
+                hex("Цвета ников", COLOR_MID));
+        put("panel.page.nametag",
+                hex("Nametag", COLOR_MID),
+                hex("Неймтег", COLOR_MID));
         put("panel.page.tablist",
                 hex("Tab List", COLOR_MID),
                 hex("Таб-лист", COLOR_MID));
@@ -195,9 +317,15 @@ public class Lang {
         put("panel.page.viasuper",
                 hex("ViaSuper", COLOR_MID),
                 hex("ViaSuper", COLOR_MID));
+        put("panel.page.afk",
+                hex("AFK", COLOR_MID),
+                hex("AFK", COLOR_MID));
         put("panel.page.joinleave",
                 hex("Join / Leave", COLOR_MID),
                 hex("Вход / Выход", COLOR_MID));
+        put("panel.page.joinleave_overrides",
+                hex("Join/Leave Overrides", COLOR_MID),
+                hex("Переопределения входа/выхода", COLOR_MID));
         put("panel.page.console",
                 hex("Console Logging", COLOR_MID),
                 hex("Логирование в консоль", COLOR_MID));
@@ -207,6 +335,9 @@ public class Lang {
         put("panel.page.blockbot",
                 hex("BlockBot / Discord", COLOR_MID),
                 hex("BlockBot / Discord", COLOR_MID));
+        put("panel.page.broadcast",
+                hex("Broadcast", COLOR_MID),
+                hex("Объявления", COLOR_MID));
         put("panel.reload",
                 hex("⟳ Reload Config", COLOR_GREEN),
                 hex("⟳ Перезагрузить конфиг", COLOR_GREEN));
@@ -245,6 +376,18 @@ public class Lang {
         put("reload.done",
                 styled("[viaStyle] All configurations reloaded.", Formatting.GREEN),
                 styled("[viaStyle] Все конфигурации перезагружены.", Formatting.GREEN));
+
+        // ── AFK (raw strings — color applied from config) ────────────────────
+        putRaw("afk.self_enabled", "You are now AFK.", "Теперь вы AFK.");
+        putRaw("afk.self_disabled", "You are no longer AFK.", "Вы больше не AFK.");
+        putRaw("afk.other_set", "Set ", "Теперь AFK: ");
+        putRaw("afk.other_unset", "Removed AFK status from ", "Статус AFK снят с ");
+
+        // ── PM Sound ─────────────────────────────────────────────────────────
+        putRaw("msound.enabled", "PM sound enabled.", "Звук ЛС включён.");
+        putRaw("msound.disabled", "PM sound disabled.", "Звук ЛС выключен.");
+        putRaw("msound.status_on", "PM sound is currently enabled.", "Звук ЛС сейчас включён.");
+        putRaw("msound.status_off", "PM sound is currently disabled.", "Звук ЛС сейчас выключен.");
 
         // ── NickColor ──────────────────────────────────────────────────────
         put("nickcolor.set",
@@ -333,9 +476,6 @@ public class Lang {
         put("panel.field.useLuckPerms",
                 hex("Enable LuckPerms integration for prefixes and permissions.", COLOR_NORMAL),
                 hex("Включить интеграцию с LuckPerms для префиксов и прав.", COLOR_NORMAL));
-        put("panel.field.useScarpetEvents",
-                hex("Emit viaStyle events to Scarpet scripts.", COLOR_NORMAL),
-                hex("Отправлять события viaStyle в Scarpet-скрипты.", COLOR_NORMAL));
         // NICKCOLOR page
         put("panel.field.nickColorEnabled",
                 hex("Master toggle — enable or disable the nick colour system entirely.", COLOR_NORMAL),
@@ -375,6 +515,9 @@ public class Lang {
         put("panel.field.pmAllowSelfMessage",
                 hex("Allow players to send a private message to themselves.", COLOR_NORMAL),
                 hex("Разрешить игрокам отправлять ЛС самим себе.", COLOR_NORMAL));
+        put("panel.field.pmBanHammerMute",
+                hex("Check BanHammer mute status on private messages.", COLOR_NORMAL),
+                hex("Проверять статус мута BanHammer в личных сообщениях.", COLOR_NORMAL));
         put("panel.field.pmSenderFormat",
                 hex("PM format shown to the sender. Placeholders: {receiver}, {message}.", COLOR_NORMAL),
                 hex("Формат ЛС для отправителя. Плейсхолдеры: {receiver}, {message}.", COLOR_NORMAL));
@@ -384,6 +527,18 @@ public class Lang {
         put("panel.field.pmColor",
                 hex("Default color applied to private messages.", COLOR_NORMAL),
                 hex("Цвет личных сообщений по умолчанию.", COLOR_NORMAL));
+        put("panel.field.pmSoundEnabled",
+                hex("Play a sound to the receiver when they get a PM.", COLOR_NORMAL),
+                hex("Проигрывать звук получателю при получении ЛС.", COLOR_NORMAL));
+        put("panel.field.pmSoundId",
+                hex("Sound ID for incoming PM notification.", COLOR_NORMAL),
+                hex("ID звука для уведомления о ЛС.", COLOR_NORMAL));
+        put("panel.field.pmSoundVolume",
+                hex("Volume of the PM notification sound.", COLOR_NORMAL),
+                hex("Громкость звука ЛС.", COLOR_NORMAL));
+        put("panel.field.pmSoundPitch",
+                hex("Pitch of the PM notification sound.", COLOR_NORMAL),
+                hex("Высота звука ЛС.", COLOR_NORMAL));
         // MENTIONS page
         put("panel.field.mentionsEnabled",
                 hex("Enable @player mentions in chat (sound + action-bar notification).", COLOR_NORMAL),
@@ -392,8 +547,8 @@ public class Lang {
                 hex("Play a ping sound when a player is mentioned.", COLOR_NORMAL),
                 hex("Воспроизводить звук при упоминании игрока.", COLOR_NORMAL));
         put("panel.field.mentionBold",
-                hex("Display @mention tokens in bold text.", COLOR_NORMAL),
-                hex("Выделять @упоминания жирным шрифтом.", COLOR_NORMAL));
+                hex("Legacy toggle for bold @mentions (style guide keeps this off).", COLOR_NORMAL),
+                hex("Устаревший переключатель жирных @упоминаний (по стилю лучше держать выключенным).", COLOR_NORMAL));
         put("panel.field.mentionColor",
                 hex("Highlight color for @mentions in chat (Formatting or #RRGGBB).", COLOR_NORMAL),
                 hex("Цвет выделения @упоминаний (имя форматирования или #RRGGBB).", COLOR_NORMAL));
@@ -406,14 +561,32 @@ public class Lang {
                 hex("Слова длиной >= этого значения показываются как субтитр; короткие — как заголовок.", COLOR_NORMAL));
         // JOINLEAVE page
         put("panel.field.joinFormat",
-                hex("Join message format. Placeholder: {name}. Legacy &-codes supported.", COLOR_NORMAL),
-                hex("Формат сообщения входа. Плейсхолдер: {name}. Поддерживаются &-коды.", COLOR_NORMAL));
+                hex("Join message format. Placeholder: {name}. Use MiniMessage tags (e.g. <#98FB98>, <bold>).", COLOR_NORMAL),
+                hex("Формат сообщения входа. Плейсхолдер: {name}. Используйте MiniMessage-теги (например <#98FB98>, <bold>).", COLOR_NORMAL));
         put("panel.field.leaveFormat",
-                hex("Leave message format. Placeholder: {name}. Legacy &-codes supported.", COLOR_NORMAL),
-                hex("Формат сообщения выхода. Плейсхолдер: {name}. Поддерживаются &-коды.", COLOR_NORMAL));
+                hex("Leave message format. Placeholder: {name}. Use MiniMessage tags (e.g. <#FF9292>, <italic>).", COLOR_NORMAL),
+                hex("Формат сообщения выхода. Плейсхолдер: {name}. Используйте MiniMessage-теги (например <#FF9292>, <italic>).", COLOR_NORMAL));
         put("panel.field.firstJoinFormat",
                 hex("Format for a player's very first join. Placeholder: {name}.", COLOR_NORMAL),
                 hex("Формат первого входа игрока. Плейсхолдер: {name}.", COLOR_NORMAL));
+        put("panel.field.joinLeavePanelPlayerTarget",
+                hex("Target player (online name or UUID) for per-player join/leave override editing.", COLOR_NORMAL),
+                hex("Целевой игрок (онлайн-ник или UUID) для редактирования личных форматов входа/выхода.", COLOR_NORMAL));
+        put("panel.field.joinLeavePanelPlayerJoinFormat",
+                hex("Per-player join format for selected player. Empty value removes player join override.", COLOR_NORMAL),
+                hex("Формат входа для выбранного игрока. Пустое значение удаляет личное переопределение входа.", COLOR_NORMAL));
+        put("panel.field.joinLeavePanelPlayerLeaveFormat",
+                hex("Per-player leave format for selected player. Empty value removes player leave override.", COLOR_NORMAL),
+                hex("Формат выхода для выбранного игрока. Пустое значение удаляет личное переопределение выхода.", COLOR_NORMAL));
+        put("panel.field.joinLeavePanelGroupTarget",
+                hex("LuckPerms group name for group-based join/leave override editing.", COLOR_NORMAL),
+                hex("Имя группы LuckPerms для редактирования групповых форматов входа/выхода.", COLOR_NORMAL));
+        put("panel.field.joinLeavePanelGroupJoinFormat",
+                hex("Per-group join format for selected group. Empty value removes group join override.", COLOR_NORMAL),
+                hex("Формат входа для выбранной группы. Пустое значение удаляет групповое переопределение входа.", COLOR_NORMAL));
+        put("panel.field.joinLeavePanelGroupLeaveFormat",
+                hex("Per-group leave format for selected group. Empty value removes group leave override.", COLOR_NORMAL),
+                hex("Формат выхода для выбранной группы. Пустое значение удаляет групповое переопределение выхода.", COLOR_NORMAL));
         // CONSOLE page
         put("panel.field.logGlobalToConsole",
                 hex("Log global chat messages to the server console.", COLOR_NORMAL),
@@ -450,6 +623,87 @@ public class Lang {
         put("panel.field.discordMentionMappings",
                 hex("Manual MC-name to Discord ID mappings. Format: \"Name:DiscordId,Name2:Id2\"", COLOR_NORMAL),
                 hex("Маппинг имён из игры в Discord ID. Формат: \"MCНик:ДискордID,Ник2:ID2\"", COLOR_NORMAL));
+        // BROADCAST page
+        put("panel.field.broadcastEnabled",
+                hex("Enable or disable /bc broadcast command.", COLOR_NORMAL),
+                hex("Включить или отключить команду рассылки /bc.", COLOR_NORMAL));
+        put("panel.field.broadcastPermission",
+                hex("Permission node required to use /bc.", COLOR_NORMAL),
+                hex("Права (permission), необходимые для использования /bc.", COLOR_NORMAL));
+        put("panel.field.broadcastCooldownSeconds",
+                hex("Cooldown in seconds between broadcasts per player.", COLOR_NORMAL),
+                hex("Кулдаун в секундах между рассылками для каждого игрока.", COLOR_NORMAL));
+        put("panel.field.broadcastHeaderFormat",
+                hex("Broadcast header format. Tokens: {sender}, {message}.", COLOR_NORMAL),
+                hex("Формат заголовка рассылки. Токены: {sender}, {message}.", COLOR_NORMAL));
+        put("panel.field.broadcastMessageFormat",
+                hex("Broadcast body format. Tokens: {sender}, {message}.", COLOR_NORMAL),
+                hex("Формат текста рассылки. Токены: {sender}, {message}.", COLOR_NORMAL));
+        put("panel.field.broadcastConsoleSenderName",
+                hex("Display name used as {sender} when /bc is executed from console.", COLOR_NORMAL),
+                hex("Имя, используемое как {sender}, когда /bc выполняется из консоли.", COLOR_NORMAL));
+        put("panel.field.broadcastCooldownFormat",
+                hex("Cooldown warning format. Token: {seconds}.", COLOR_NORMAL),
+                hex("Формат предупреждения о кулдауне. Токен: {seconds}.", COLOR_NORMAL));
+        put("panel.field.broadcastFeedbackFormat",
+                hex("Feedback format after successful /bc. Tokens: {count}, {sender}, {message}.", COLOR_NORMAL),
+                hex("Формат подтверждения после успешного /bc. Токены: {count}, {sender}, {message}.", COLOR_NORMAL));
+        put("panel.field.broadcastLogFormat",
+                hex("Server log message format. Tokens: {count}, {sender}, {message}.", COLOR_NORMAL),
+                hex("Формат сообщения в лог сервера. Токены: {count}, {sender}, {message}.", COLOR_NORMAL));
+        put("panel.field.broadcastSoundEnabled",
+                hex("Play configured sound for recipients of /bc.", COLOR_NORMAL),
+                hex("Воспроизводить настроенный звук получателям /bc.", COLOR_NORMAL));
+        put("panel.field.broadcastSoundId",
+                hex("Sound ID used by /bc (example: minecraft:block.note_block.bell).", COLOR_NORMAL),
+                hex("ID звука для /bc (пример: minecraft:block.note_block.bell).", COLOR_NORMAL));
+        put("panel.field.broadcastSoundVolume",
+                hex("Volume of /bc sound.", COLOR_NORMAL),
+                hex("Громкость звука /bc.", COLOR_NORMAL));
+        put("panel.field.broadcastSoundPitch",
+                hex("Pitch of /bc sound.", COLOR_NORMAL),
+                hex("Высота тона звука /bc.", COLOR_NORMAL));
+        put("panel.field.broadcastSendFeedback",
+                hex("Send feedback message to command source after /bc.", COLOR_NORMAL),
+                hex("Отправлять подтверждение источнику команды после /bc.", COLOR_NORMAL));
+        // Viasuper page
+        put("panel.field.viaSuperTitleFormat",
+                hex("MiniMessage format for short words shown as big title. {word}", COLOR_NORMAL),
+                hex("MiniMessage-формат коротких слов (большой заголовок). {word}", COLOR_NORMAL));
+        put("panel.field.viaSuperSubtitleFormat",
+                hex("MiniMessage format for long words shown as subtitle. {word}", COLOR_NORMAL),
+                hex("MiniMessage-формат длинных слов (субтитр). {word}", COLOR_NORMAL));
+        // AFK page
+        put("panel.field.afkEnabled",
+                hex("Enable automatic AFK detection for inactive players.", COLOR_NORMAL),
+                hex("Включить автоматическое определение AFK.", COLOR_NORMAL));
+        put("panel.field.afkTimeout",
+                hex("Seconds of inactivity before a player is marked AFK.", COLOR_NORMAL),
+                hex("Секунд бездействия до маркировки игрока AFK.", COLOR_NORMAL));
+        put("panel.field.afkSuffix",
+                hex("Suffix appended to player name when AFK. Supports MiniMessage tags.", COLOR_NORMAL),
+                hex("Суффикс к имени в AFK. Поддерживает MiniMessage.", COLOR_NORMAL));
+        put("panel.field.afkSuffixColor",
+                hex("Color override for the AFK suffix (if not specified in suffix field).", COLOR_NORMAL),
+                hex("Цвет суффикса AFK (если не указан в самом суффиксе).", COLOR_NORMAL));
+        put("panel.field.afkNameColor",
+                hex("Override player name colour when AFK. Empty = keep existing nick colour.", COLOR_NORMAL),
+                hex("Переопределить цвет ника в AFK. Пусто = оставить текущий цвет.", COLOR_NORMAL));
+        put("panel.field.afkPermission",
+                hex("Permission node required to use /afk command.", COLOR_NORMAL),
+                hex("Права для использования /afk.", COLOR_NORMAL));
+        put("panel.field.afkBypassPermission",
+                hex("Players with this permission are exempt from automatic AFK detection.", COLOR_NORMAL),
+                hex("Игроки с этим правом не получают AFK автоматически.", COLOR_NORMAL));
+        put("panel.field.afkExemptPlayers",
+                hex("Comma-separated UUIDs of players exempt from auto-AFK.", COLOR_NORMAL),
+                hex("UUID игроков через запятую, исключённых из авто-AFK.", COLOR_NORMAL));
+        put("panel.field.afkEnabledColor",
+                hex("Text color for AFK enabled/joined messages (hex).", COLOR_NORMAL),
+                hex("Цвет текста для сообщений о включении AFK (hex).", COLOR_NORMAL));
+        put("panel.field.afkDisabledColor",
+                hex("Text color for AFK disabled/left messages (hex).", COLOR_NORMAL),
+                hex("Цвет текста для сообщений о выходе из AFK (hex).", COLOR_NORMAL));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -458,7 +712,7 @@ public class Lang {
 
     public static Text get(String key) {
         Map<String, Text> messages = currentLang.equals("ru") ? ruMessages : enMessages;
-        Text defaultText = enMessages.getOrDefault(key, Text.literal(key).formatted(Formatting.RED));
+        Text defaultText = enMessages.getOrDefault(key, hex(key, COLOR_RED));
         return messages.getOrDefault(key, defaultText);
     }
 
@@ -479,6 +733,24 @@ public class Lang {
         return currentLang;
     }
 
+    /** Stores a raw (unformatted) string, used for messages whose color is applied at runtime. */
+    private static void putRaw(String key, String en, String ru) {
+        enRaw.put(key, en);
+        ruRaw.put(key, ru);
+    }
+
+    /** Returns the raw string for a key (fallback: the key itself). */
+    public static String getRaw(String key) {
+        Map<String, String> msgs = currentLang.equals("ru") ? ruRaw : enRaw;
+        String defaultText = enRaw.getOrDefault(key, key);
+        return msgs.getOrDefault(key, defaultText);
+    }
+
+    /** Returns a colored {@code MutableText} from a raw string entry. */
+    public static MutableText getColored(String key, TextColor color) {
+        return Text.literal(getRaw(key)).styled(s -> s.withColor(color));
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     //  Helpers
     // ═══════════════════════════════════════════════════════════════════════
@@ -488,13 +760,29 @@ public class Lang {
         ruMessages.put(key, ru);
     }
 
-    private static MutableText styled(String text, Formatting... formats) {
-        return Text.literal(text).formatted(formats);
+        private static MutableText styled(String text, Formatting... formats) {
+                TextColor color = COLOR_NORMAL;
+                for (Formatting fmt : formats) {
+                        if (fmt == null) continue;
+                        switch (fmt) {
+                                case RED, DARK_RED -> color = COLOR_RED;
+                                case GREEN -> color = COLOR_GREEN;
+                                case YELLOW, GOLD -> color = COLOR_MID;
+                                case DARK_GRAY -> color = TextColor.fromRgb(0xB0C4DE);
+                                case AQUA -> color = TextColor.fromRgb(0xC9E8F5);
+                                case LIGHT_PURPLE -> color = TextColor.fromRgb(0xC8A2C8);
+                                case WHITE, GRAY -> color = COLOR_NORMAL;
+                                default -> {
+                                }
+                        }
+                }
+                TextColor selectedColor = color;
+                return Text.literal(text).styled(s -> s.withColor(selectedColor));
     }
 
     /** Creates a MutableText with a hex TextColor (no bold). */
     private static MutableText hex(String text, TextColor color) {
-        return Text.literal(text).styled(s -> s.withColor(color));
+                return Text.literal(text).styled(s -> s.withColor(color));
     }
 
     /** Public accessors for the palette — used by AdminPanelCommand. */

@@ -17,7 +17,7 @@ public interface PlaceholderProvider {
 
     /**
      * Full pipeline: parses Patbox Simplified Text Format tags
-     * ({@code <dark_green>}, {@code <gradient:...>}, {@code <bold>}, {@code &}-codes, etc.)
+        * ({@code <dark_green>}, {@code <gradient:...>}, {@code <bold>}, etc.)
      * and then resolves {@code %namespace:key%} PAPI placeholders.
      *
      * @param input  raw format string

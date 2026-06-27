@@ -141,20 +141,17 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
     }
 
     /**
-     * Converts legacy {@code &X} and {@code §X} colour/format codes into
+     * Converts legacy {@code §X} colour/format codes into
      * Patbox Simplified Text Format tags that {@code TextParserUtils} understands.
-     * <p>Example: {@code "&aHello &lWorld"} → {@code "<green>Hello <bold>World"}</p>
      */
-    static String legacyToMiniMessage(String input) {
+    static String sectionToMiniMessage(String input) {
         if (input == null || input.isEmpty()) return input;
-        // Normalise § → &
-        String s = input.replace('§', '&');
-        StringBuilder out = new StringBuilder(s.length() + 32);
-        int len = s.length();
+        StringBuilder out = new StringBuilder(input.length() + 32);
+        int len = input.length();
         for (int i = 0; i < len; i++) {
-            char c = s.charAt(i);
-            if (c == '&' && i + 1 < len) {
-                char code = Character.toLowerCase(s.charAt(i + 1));
+            char c = input.charAt(i);
+            if (c == '§' && i + 1 < len) {
+                char code = Character.toLowerCase(input.charAt(i + 1));
                 String tag = switch (code) {
                     case '0' -> "<black>";
                     case '1' -> "<dark_blue>";
@@ -194,7 +191,7 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
     /**
      * Full pipeline:
      * <ol>
-     *   <li>Convert {@code &X}/{@code §X} legacy codes → Patbox MiniMessage tags</li>
+    *   <li>Convert {@code §X} legacy codes → Patbox MiniMessage tags</li>
      *   <li>Parse Patbox Simplified Text Format tags via {@code TextParserUtils.formatText}</li>
      *   <li>Resolve {@code %namespace:key%} PAPI placeholders via {@code Placeholders.parseText}</li>
      * </ol>
@@ -205,8 +202,8 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
         try {
             input = normalizePercentAliasSyntax(input);
 
-            // Step 1: convert &-codes → <tags>
-            String converted = legacyToMiniMessage(input);
+            // Step 1: convert §-codes → <tags>
+            String converted = sectionToMiniMessage(input);
 
             // Step 2: build placeholder context (player or server fallback)
             Object ctx = null;

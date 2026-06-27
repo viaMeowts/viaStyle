@@ -91,7 +91,7 @@ public final class PlaceholderHelper {
      * plus PAPI placeholder resolution — all in one step.
      *
      * <p>Supports: {@code <dark_green>}, {@code <gradient:#f00:#0f0>text</gradient>},
-     * {@code <bold>}, {@code <shadow:#000>}, {@code &a}, {@code #RRGGBB},
+    * {@code <bold>}, {@code <shadow:#000>}, {@code #RRGGBB},
      * {@code %player:displayname%}, {@code %server:tps%}, etc.</p>
      *
      * <p>Falls back to the built-in {@link TabListManager#parseLegacyAndHex} parser
@@ -111,7 +111,7 @@ public final class PlaceholderHelper {
                 viaStyle.LOGGER.warn("[viaStyle] PAPI parseFormat error: {}", t.getMessage());
             }
         }
-        // Fallback: our own legacy + MiniMessage-subset parser
+        // Fallback: our own MiniMessage-subset parser (+ legacy section-sign support)
         return TabListManager.parseLegacyAndHex(input);
     }
 }

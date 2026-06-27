@@ -146,6 +146,11 @@ public final class NickColorManager {
      */
     public static MutableText getColoredName(ServerPlayerEntity player) {
         if (!viaStyle.CONFIG.nickColorEnabled) return null;
+
+        if (AfkManager.isAfk(player.getUuid()) && viaStyle.CONFIG.afkNameColor != null && !viaStyle.CONFIG.afkNameColor.isBlank()) {
+            return MiniMessageParser.colorize(player.getName().getString(), viaStyle.CONFIG.afkNameColor);
+        }
+
         String spec = getColorSpec(player.getUuid());
         if (spec == null) return null;
         return MiniMessageParser.colorize(player.getName().getString(), spec);
@@ -157,6 +162,14 @@ public final class NickColorManager {
      */
     public static TextColor getPrimaryColor(UUID uuid) {
         if (!viaStyle.CONFIG.nickColorEnabled) return null;
+
+        ServerPlayerEntity player = PlaceholderHelper.getServer() != null
+                ? PlaceholderHelper.getServer().getPlayerManager().getPlayer(uuid) : null;
+        if (player != null && AfkManager.isAfk(uuid) && viaStyle.CONFIG.afkNameColor != null && !viaStyle.CONFIG.afkNameColor.isBlank()) {
+            TextColor afkColor = MiniMessageParser.primaryColor(viaStyle.CONFIG.afkNameColor);
+            if (afkColor != null) return afkColor;
+        }
+
         String spec = getColorSpec(uuid);
         return spec != null ? MiniMessageParser.primaryColor(spec) : null;
     }

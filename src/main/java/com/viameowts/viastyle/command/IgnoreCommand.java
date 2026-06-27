@@ -13,6 +13,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,9 +35,13 @@ public class IgnoreCommand {
                         .executes(IgnoreCommand::listIgnored))
                 .then(CommandManager.argument("player", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
+                            String remaining = builder.getRemainingLowerCase();
                             for (ServerPlayerEntity p : ctx.getSource().getServer()
                                     .getPlayerManager().getPlayerList()) {
-                                builder.suggest(p.getName().getString());
+                                String name = p.getName().getString();
+                                if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                                    builder.suggest(name);
+                                }
                             }
                             return builder.buildFuture();
                         })
@@ -47,12 +52,16 @@ public class IgnoreCommand {
             .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore"))
                 .then(CommandManager.argument("player", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
+                            String remaining = builder.getRemainingLowerCase();
                             if (ctx.getSource().getEntity() instanceof ServerPlayerEntity p) {
                                 Set<UUID> ignored = IgnoreManager.getIgnored(p.getUuid());
                                 for (ServerPlayerEntity online : ctx.getSource().getServer()
                                         .getPlayerManager().getPlayerList()) {
                                     if (ignored.contains(online.getUuid())) {
-                                        builder.suggest(online.getName().getString());
+                                        String name = online.getName().getString();
+                                        if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                                            builder.suggest(name);
+                                        }
                                     }
                                 }
                             }

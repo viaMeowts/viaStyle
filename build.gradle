@@ -28,9 +28,9 @@ dependencies {
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-	def viaPanelApiJar = fileTree(dir: 'libs', include: ['viapanel-*.jar'])
+	def viaPanelApiJar = fileTree(dir: '../lib', include: ['viapanel-*.jar'])
 	if (viaPanelApiJar.isEmpty()) {
-		throw new GradleException("Missing standalone viaPanel jar in /libs. Build viapanel separately and copy viapanel-*.jar into libs/.")
+		throw new GradleException("Missing standalone viaPanel jar in ../lib/. Build viapanel separately and copy viapanel-*.jar into ../lib/.")
 	}
 	modCompileOnly viaPanelApiJar
 
@@ -62,7 +62,7 @@ tasks.withType(JavaCompile).configureEach {
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(25)
+		languageVersion = JavaLanguageVersion.of(21)
 	}
 	withSourcesJar()
 }

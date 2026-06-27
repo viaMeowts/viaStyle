@@ -4,45 +4,64 @@ import com.viameowts.viapanel.api.ViaPanelProvider;
 import com.viameowts.viapanel.api.ViaPanelSection;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 public class ViaStylePanelProvider implements ViaPanelProvider {
 
     private static final List<ViaPanelSection> SECTIONS = List.of(
-            new ViaPanelSection("chat", Lang.get("panel.page.chat"), List.of(
-                    "localChatRadius", "localPrefix", "localPrefixColor", "localNameColor", "localMessageColor",
-                    "localNooneHeard", "localNooneHeardMessage",
-                    "globalTrigger", "globalPrefix", "globalPrefixColor", "globalNameColor", "globalMessageColor",
-                    "staffTrigger", "staffPrefix", "staffPrefixColor", "staffNameColor", "staffMessageColor"
+            new ViaPanelSection("local", Lang.get("panel.page.local"), List.of(
+                    "localChatRadius", "localTrigger", "localPrefix", "localPrefixColor",
+                    "localNameColor", "localMessageColor", "localFormat",
+                    "localNooneHeard", "localNooneHeardMessage"
+            )),
+            new ViaPanelSection("global", Lang.get("panel.page.global"), List.of(
+                    "globalTrigger", "globalPrefix", "globalPrefixColor",
+                    "globalNameColor", "globalMessageColor", "globalFormat"
+            )),
+            new ViaPanelSection("staff", Lang.get("panel.page.staff"), List.of(
+                    "staffTrigger", "staffPrefix", "staffPrefixColor",
+                    "staffNameColor", "staffMessageColor", "staffFormat"
+            )),
+            new ViaPanelSection("chat_format", Lang.get("panel.page.chat_format"), List.of(
+                    "chatMiniMessageEnabled", "chatMiniMessageRequirePermission", "chatMiniMessagePermission"
             )),
             new ViaPanelSection("timestamp", Lang.get("panel.page.timestamp"), List.of(
                     "showTimestamp", "timestampFormat", "timestampColor"
             )),
-            new ViaPanelSection("integrations", Lang.get("panel.page.integrations"), List.of(
-                    "usePlaceholderApi", "useBanHammer", "useLuckPerms", "useScarpetEvents"
-            )),
             new ViaPanelSection("nickcolor", Lang.get("panel.page.nickcolor"), List.of(
-                    "nickColorEnabled", "nickColorInChat", "nickColorInTab", "nickColorInNametag",
-                    "nametagShowLpPrefix", "nametagMode", "nametagColorStrategy",
+                    "nickColorEnabled", "nickColorInChat", "nickColorInTab", "nickColorInNametag"
+            )),
+            new ViaPanelSection("nametag", Lang.get("panel.page.nametag"), List.of(
+                    "nametagMode", "nametagShowLpPrefix", "nametagColorStrategy",
                     "nametagOrphanScanEnabled", "nametagOrphanScanIntervalTicks"
             )),
             new ViaPanelSection("tablist", Lang.get("panel.page.tablist"), List.of(
                     "tabSortMode", "tabSortSpectatorsToBottom"
             )),
             new ViaPanelSection("pm", Lang.get("panel.page.pm"), List.of(
-                    "pmAllowSelfMessage", "pmSenderFormat", "pmReceiverFormat", "pmColor"
+                    "pmAllowSelfMessage", "pmBanHammerMute", "pmSenderFormat", "pmReceiverFormat", "pmColor",
+                    "pmSoundEnabled", "pmSoundId", "pmSoundVolume", "pmSoundPitch"
             )),
             new ViaPanelSection("mentions", Lang.get("panel.page.mentions"), List.of(
-                    "mentionsEnabled", "mentionSound", "mentionBold", "mentionColor"
+                    "mentionsEnabled", "mentionSound", "mentionColor"
             )),
-            new ViaPanelSection("viasuper", Lang.get("panel.page.viasuper"), List.of(
-                    "viaSuperWordSound", "viaSuperSubtitleLength"
+            new ViaPanelSection("broadcast", Lang.get("panel.page.broadcast"), List.of(
+                    "broadcastEnabled", "broadcastPermission", "broadcastCooldownSeconds",
+                    "broadcastHeaderFormat", "broadcastMessageFormat",
+                    "broadcastConsoleSenderName", "broadcastCooldownFormat", "broadcastFeedbackFormat", "broadcastLogFormat",
+                    "broadcastSoundEnabled", "broadcastSoundId", "broadcastSoundVolume", "broadcastSoundPitch",
+                    "broadcastSendFeedback"
             )),
             new ViaPanelSection("joinleave", Lang.get("panel.page.joinleave"), List.of(
-                    "joinFormat", "leaveFormat", "firstJoinFormat"
+                    "joinFormat", "leaveFormat", "firstJoinFormat", "joinLeavePerPlayerEnabled"
+            )),
+            new ViaPanelSection("joinleave_overrides", Lang.get("panel.page.joinleave_overrides"), List.of(
+                    "joinLeavePanelPlayerTarget", "joinLeavePanelPlayerJoinFormat", "joinLeavePanelPlayerLeaveFormat",
+                    "joinLeavePanelGroupTarget", "joinLeavePanelGroupJoinFormat", "joinLeavePanelGroupLeaveFormat"
             )),
             new ViaPanelSection("console", Lang.get("panel.page.console"), List.of(
                     "logGlobalToConsole", "logLocalToConsole", "logStaffToConsole", "logPrivatesToConsole"
@@ -51,7 +70,21 @@ public class ViaStylePanelProvider implements ViaPanelProvider {
                     "defaultLanguage"
             )),
             new ViaPanelSection("blockbot", Lang.get("panel.page.blockbot"), List.of(
-                    "discordBridgeMode", "blockbotGlobalChannel", "discordFormat", "discordPassthrough", "discordMentionPing"
+                    "discordBridgeMode", "blockbotGlobalChannel", "blockbotLocalChannel",
+                    "discordFormat", "discordPassthrough",
+                    "discordMentionPing", "discordMentionMappings"
+            )),
+            new ViaPanelSection("integrations", Lang.get("panel.page.integrations"), List.of(
+                    "usePlaceholderApi", "useBanHammer", "useLuckPerms"
+            )),
+            new ViaPanelSection("viasuper", Lang.get("panel.page.viasuper"), List.of(
+                    "viaSuperWordSound", "viaSuperSubtitleLength",
+                    "viaSuperTitleFormat", "viaSuperSubtitleFormat"
+            )),
+            new ViaPanelSection("afk", Lang.get("panel.page.afk"), List.of(
+                    "afkEnabled", "afkTimeout", "afkSuffix", "afkSuffixColor", "afkNameColor",
+                    "afkPermission", "afkBypassPermission", "afkExemptPlayers",
+                    "afkEnabledColor", "afkDisabledColor"
             ))
     );
 
@@ -134,6 +167,10 @@ public class ViaStylePanelProvider implements ViaPanelProvider {
     public void reload(ServerCommandSource source) {
         viaStyle.CONFIG = ViaStyleConfig.load();
         Lang.setLang(viaStyle.CONFIG.defaultLanguage);
+        if (viaStyle.CONFIG.applyLocalizedPlaceholderDefaults(viaStyle.CONFIG.defaultLanguage)) {
+            viaStyle.CONFIG.save();
+        }
+        JoinLeaveManager.reload();
         TabListManager.reloadConfig();
         NickColorManager.reload();
 
@@ -151,7 +188,12 @@ public class ViaStylePanelProvider implements ViaPanelProvider {
     public void onFieldUpdated(String fieldName, ServerCommandSource source) {
         if ("defaultLanguage".equals(fieldName) && viaStyle.CONFIG != null) {
             Lang.setLang(viaStyle.CONFIG.defaultLanguage);
+            if (viaStyle.CONFIG.applyLocalizedPlaceholderDefaults(viaStyle.CONFIG.defaultLanguage)) {
+                viaStyle.CONFIG.save();
+            }
         }
+
+        handleJoinLeaveOverrideField(fieldName, source);
 
         if (needsVisualRefresh(fieldName)) {
             var server = source.getServer();
@@ -172,6 +214,7 @@ public class ViaStylePanelProvider implements ViaPanelProvider {
             return;
         }
         viaStyle.CONFIG.defaultLanguage = languageCode.toLowerCase();
+        viaStyle.CONFIG.applyLocalizedPlaceholderDefaults(viaStyle.CONFIG.defaultLanguage);
         viaStyle.CONFIG.save();
         Lang.setLang(viaStyle.CONFIG.defaultLanguage);
     }
@@ -180,7 +223,91 @@ public class ViaStylePanelProvider implements ViaPanelProvider {
         return fieldName.contains("nickColor") || fieldName.contains("nametag")
                 || fieldName.contains("tab") || fieldName.contains("Tab")
                 || fieldName.contains("Nametag") || fieldName.contains("NickColor")
-                || fieldName.contains("Spectator") || fieldName.contains("spectator");
+                || fieldName.contains("Spectator") || fieldName.contains("spectator")
+                || fieldName.contains("afk");
+    }
+
+    private static void handleJoinLeaveOverrideField(String fieldName, ServerCommandSource source) {
+        if (viaStyle.CONFIG == null) return;
+
+        switch (fieldName) {
+            case "joinLeavePanelPlayerTarget" -> {
+                UUID uuid = resolvePlayerTargetUuid(source, viaStyle.CONFIG.joinLeavePanelPlayerTarget);
+                if (uuid == null) return;
+                JoinLeaveManager.MessagePair pair = JoinLeaveManager.getUser(uuid);
+                viaStyle.CONFIG.joinLeavePanelPlayerJoinFormat = pair != null && pair.join != null ? pair.join : "";
+                viaStyle.CONFIG.joinLeavePanelPlayerLeaveFormat = pair != null && pair.leave != null ? pair.leave : "";
+                viaStyle.CONFIG.save();
+            }
+            case "joinLeavePanelPlayerJoinFormat" -> {
+                UUID uuid = resolvePlayerTargetUuid(source, viaStyle.CONFIG.joinLeavePanelPlayerTarget);
+                if (uuid == null) return;
+                String format = normalizePanelField(viaStyle.CONFIG.joinLeavePanelPlayerJoinFormat);
+                if (format == null) JoinLeaveManager.removeUserJoin(uuid);
+                else JoinLeaveManager.setUserJoin(uuid, format);
+            }
+            case "joinLeavePanelPlayerLeaveFormat" -> {
+                UUID uuid = resolvePlayerTargetUuid(source, viaStyle.CONFIG.joinLeavePanelPlayerTarget);
+                if (uuid == null) return;
+                String format = normalizePanelField(viaStyle.CONFIG.joinLeavePanelPlayerLeaveFormat);
+                if (format == null) JoinLeaveManager.removeUserLeave(uuid);
+                else JoinLeaveManager.setUserLeave(uuid, format);
+            }
+            case "joinLeavePanelGroupTarget" -> {
+                String group = normalizeGroupTarget(viaStyle.CONFIG.joinLeavePanelGroupTarget);
+                if (group == null) return;
+                JoinLeaveManager.MessagePair pair = JoinLeaveManager.getGroups().get(group);
+                viaStyle.CONFIG.joinLeavePanelGroupJoinFormat = pair != null && pair.join != null ? pair.join : "";
+                viaStyle.CONFIG.joinLeavePanelGroupLeaveFormat = pair != null && pair.leave != null ? pair.leave : "";
+                viaStyle.CONFIG.save();
+            }
+            case "joinLeavePanelGroupJoinFormat" -> {
+                String group = normalizeGroupTarget(viaStyle.CONFIG.joinLeavePanelGroupTarget);
+                if (group == null) return;
+                String format = normalizePanelField(viaStyle.CONFIG.joinLeavePanelGroupJoinFormat);
+                if (format == null) JoinLeaveManager.removeGroupJoin(group);
+                else JoinLeaveManager.setGroupJoin(group, format);
+            }
+            case "joinLeavePanelGroupLeaveFormat" -> {
+                String group = normalizeGroupTarget(viaStyle.CONFIG.joinLeavePanelGroupTarget);
+                if (group == null) return;
+                String format = normalizePanelField(viaStyle.CONFIG.joinLeavePanelGroupLeaveFormat);
+                if (format == null) JoinLeaveManager.removeGroupLeave(group);
+                else JoinLeaveManager.setGroupLeave(group, format);
+            }
+            default -> {
+            }
+        }
+    }
+
+    private static UUID resolvePlayerTargetUuid(ServerCommandSource source, String target) {
+        String value = normalizePanelField(target);
+        if (value == null) return null;
+
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
+            if (player.getName().getString().equalsIgnoreCase(value)) {
+                return player.getUuid();
+            }
+        }
+
+        source.sendError(Lang.get("joinleave.admin.player_not_found"));
+        return null;
+    }
+
+    private static String normalizePanelField(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static String normalizeGroupTarget(String group) {
+        String normalized = normalizePanelField(group);
+        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
     private static String toDisplayName(String fieldName) {

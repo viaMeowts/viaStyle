@@ -35,8 +35,9 @@ public class ChatModeCommand {
                     .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.lang"))
                         .then(CommandManager.argument("language", StringArgumentType.word())
                                 .suggests((context, builder) -> {
-                                    builder.suggest("en");
-                                    builder.suggest("ru");
+                            String remaining = builder.getRemainingLowerCase();
+                            if ("en".startsWith(remaining)) builder.suggest("en");
+                            if ("ru".startsWith(remaining)) builder.suggest("ru");
                                     return builder.buildFuture();
                                 })
                                 .executes(ChatModeCommand::setLanguage)
@@ -103,6 +104,7 @@ public class ChatModeCommand {
         if (Lang.setLang(langArg)) {
             // Persist language choice to config
             viaStyle.CONFIG.defaultLanguage = langArg.toLowerCase();
+            viaStyle.CONFIG.applyLocalizedPlaceholderDefaults(viaStyle.CONFIG.defaultLanguage);
             viaStyle.CONFIG.save();
 
             Text feedback = Lang.getMutable("command.lang.set")
@@ -143,6 +145,9 @@ public class ChatModeCommand {
         // Re-set language
         if (viaStyle.CONFIG.defaultLanguage != null && !viaStyle.CONFIG.defaultLanguage.isBlank()) {
             Lang.setLang(viaStyle.CONFIG.defaultLanguage);
+            if (viaStyle.CONFIG.applyLocalizedPlaceholderDefaults(viaStyle.CONFIG.defaultLanguage)) {
+                viaStyle.CONFIG.save();
+            }
         }
 
         source.sendFeedback(

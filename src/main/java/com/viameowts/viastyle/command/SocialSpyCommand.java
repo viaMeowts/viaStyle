@@ -15,7 +15,7 @@ import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.text.TextColor;
 
 import java.util.Set;
 
@@ -31,6 +31,11 @@ import java.util.Set;
  */
 public class SocialSpyCommand {
 
+    private static final TextColor COLOR_ACCENT = TextColor.fromRgb(0xFFC64C);
+    private static final TextColor COLOR_TEXT = TextColor.fromRgb(0xD9D0D5);
+    private static final TextColor COLOR_ON = TextColor.fromRgb(0x98FB98);
+    private static final TextColor COLOR_OFF = TextColor.fromRgb(0xFF5555);
+
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher,
                                 CommandRegistryAccess registryAccess,
                                 CommandManager.RegistrationEnvironment environment) {
@@ -43,8 +48,12 @@ public class SocialSpyCommand {
                         .executes(SocialSpyCommand::disableAll))
                 .then(CommandManager.argument("channel", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
+                            String remaining = builder.getRemainingLowerCase();
                             for (Channel ch : Channel.values()) {
-                                builder.suggest(ch.name().toLowerCase());
+                                String channel = ch.name().toLowerCase();
+                                if (channel.startsWith(remaining)) {
+                                    builder.suggest(channel);
+                                }
                             }
                             return builder.buildFuture();
                         })
@@ -55,7 +64,7 @@ public class SocialSpyCommand {
     private static boolean hasPermission(ServerCommandSource source) {
         if (LuckPermsHelper.checkPermission(source, "viastyle.command.socialspy", 2)) return true;
         if (source.getEntity() instanceof ServerPlayerEntity p) {
-            return LuckPermsHelper.hasPermission(p.getUuid(), "viastyle.socialspy");
+            return LuckPermsHelper.checkPlayerPermission(p, "viastyle.socialspy", 2);
         }
         return false;
     }
@@ -69,24 +78,19 @@ public class SocialSpyCommand {
         Set<Channel> channels = SocialSpyManager.getChannels(player.getUuid());
         boolean anyActive = !channels.isEmpty();
 
-        MutableText header = Text.literal("═══ ").formatted(Formatting.GOLD)
-                .append(Lang.get("spy.header"))
-                .append(Text.literal(" ═══").formatted(Formatting.GOLD));
+        MutableText header = Text.literal("▸ ").styled(s -> s.withColor(COLOR_ACCENT))
+            .append(Lang.get("spy.header"));
         ctx.getSource().sendFeedback(() -> header, false);
 
         // Master toggle
         MutableText masterLine = Lang.getMutable("spy.master");
         if (anyActive) {
-            masterLine.append(Text.literal("[ON]").styled(s -> s
-                    .withColor(Formatting.GREEN)
-                    .withBold(true)
+            masterLine.append(Lang.getMutable("spy.state_on_tag").styled(s -> s
                     .withClickEvent(new ClickEvent.RunCommand("/socialspy off"))
                     .withHoverEvent(new HoverEvent.ShowText(
                             Lang.get("spy.click_disable_all")))));
         } else {
-            masterLine.append(Text.literal("[OFF]").styled(s -> s
-                    .withColor(Formatting.RED)
-                    .withBold(true)
+            masterLine.append(Lang.getMutable("spy.state_off_tag").styled(s -> s
                     .withClickEvent(new ClickEvent.RunCommand("/socialspy on"))
                     .withHoverEvent(new HoverEvent.ShowText(
                             Lang.get("spy.click_enable_all")))));
@@ -97,19 +101,16 @@ public class SocialSpyCommand {
         for (Channel ch : Channel.values()) {
             boolean on = channels.contains(ch);
             String chName = ch.name().toLowerCase();
-            MutableText line = Text.literal("  " + capitalize(chName) + ": ").formatted(Formatting.GRAY);
+                MutableText line = Text.literal("  " + capitalize(chName) + ": ").styled(s -> s.withColor(COLOR_TEXT));
 
-            MutableText toggle = Text.literal(on ? "[ON]" : "[OFF]").styled(s -> s
-                    .withColor(on ? Formatting.GREEN : Formatting.RED)
+                MutableText toggle = (on ? Lang.getMutable("spy.state_on_tag") : Lang.getMutable("spy.state_off_tag")).styled(s -> s
+                    .withColor(on ? COLOR_ON : COLOR_OFF)
                     .withClickEvent(new ClickEvent.RunCommand("/socialspy " + chName))
                     .withHoverEvent(new HoverEvent.ShowText(
                             Lang.get("spy.click_toggle"))));
             line.append(toggle);
             ctx.getSource().sendFeedback(() -> line, false);
         }
-
-        MutableText footer = Text.literal("═════════════════").formatted(Formatting.GOLD);
-        ctx.getSource().sendFeedback(() -> footer, false);
         return 1;
     }
 
@@ -147,12 +148,12 @@ public class SocialSpyCommand {
 
         boolean nowOn = SocialSpyManager.toggleChannel(player.getUuid(), ch);
         ctx.getSource().sendFeedback(
-                () -> Text.literal("SocialSpy ").formatted(Formatting.GOLD)
-                        .append(Text.literal(capitalize(chName)).formatted(Formatting.WHITE))
-                        .append(Text.literal(": ").formatted(Formatting.GOLD))
-                        .append(nowOn
-                                ? Text.literal("ON").formatted(Formatting.GREEN)
-                                : Text.literal("OFF").formatted(Formatting.RED)),
+            () -> Lang.getMutable("spy.toggle_prefix").styled(s -> s.withColor(COLOR_ACCENT))
+                    .append(Text.literal(capitalize(chName)).styled(s -> s.withColor(COLOR_TEXT)))
+                    .append(Text.literal(": ").styled(s -> s.withColor(COLOR_ACCENT)))
+                    .append(nowOn
+                ? Lang.get("spy.state_on").copy().styled(s -> s.withColor(COLOR_ON))
+                : Lang.get("spy.state_off").copy().styled(s -> s.withColor(COLOR_OFF))),
                 false);
         return 1;
     }

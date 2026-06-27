@@ -2,19 +2,18 @@ package com.viameowts.viastyle;
 
 import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
 import net.minecraft.registry.Registries;
-import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -51,16 +50,36 @@ public final class MentionHandler {
     public static void processMentions(MinecraftServer server,
                                        ServerPlayerEntity sender,
                                        String message) {
+        processMentions(server, sender, message, null);
+    }
+
+    /**
+     * Checks if the message contains any @mentions and notifies mentioned players.
+     * If {@code allowedRecipients} is provided, only players in that collection
+     * can be notified (used for local chat radius delivery).
+     */
+    public static void processMentions(MinecraftServer server,
+                                       ServerPlayerEntity sender,
+                                       String message,
+                                       Collection<ServerPlayerEntity> allowedRecipients) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg == null || !cfg.mentionsEnabled) return;
 
         Matcher matcher = MENTION_PATTERN.matcher(message);
         List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
+        Set<UUID> allowed = null;
+        if (allowedRecipients != null) {
+            allowed = ConcurrentHashMap.newKeySet();
+            for (ServerPlayerEntity recipient : allowedRecipients) {
+                allowed.add(recipient.getUuid());
+            }
+        }
 
         while (matcher.find()) {
             String mentionedName = matcher.group(1);
             for (ServerPlayerEntity target : players) {
                 if (target.getName().getString().equalsIgnoreCase(mentionedName)) {
+                    if (allowed != null && !allowed.contains(target.getUuid())) break;
                     // Skip if sender cannot see the vanished target
                     if (!VanishHelper.canSeePlayer(target, sender)) break;
                     // Stamp dedup cache first so GAME_MESSAGE scanner won't double-ping
@@ -79,9 +98,16 @@ public final class MentionHandler {
     public static Text highlightMentions(String message, TextColor baseColor,
                                          MinecraftServer server,
                                          ServerPlayerEntity sender) {
+        return highlightMentions(message, baseColor, server, sender, false);
+    }
+
+    public static Text highlightMentions(String message, TextColor baseColor,
+                                         MinecraftServer server,
+                                         ServerPlayerEntity sender,
+                                         boolean useMiniMessage) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg == null || !cfg.mentionsEnabled) {
-            return Text.literal(message).styled(s -> s.withColor(baseColor));
+            return parseMiniOrPlain(message, baseColor, useMiniMessage);
         }
 
         TextColor mentionColor = cfg.getMentionColor();
@@ -103,24 +129,36 @@ public final class MentionHandler {
 
             if (isValidMention) {
                 if (matcher.start() > last) {
-                    result.append(Text.literal(message.substring(last, matcher.start()))
-                            .styled(s -> s.withColor(baseColor)));
+                    String segment = message.substring(last, matcher.start());
+                    result.append(parseMiniOrPlain(segment, baseColor, useMiniMessage));
                 }
-                boolean bold = cfg.mentionBold;
                 result.append(Text.literal(matcher.group())
-                        .styled(s -> s.withColor(mentionColor).withBold(bold)));
+                    .styled(s -> s.withColor(mentionColor)));
                 last = matcher.end();
             }
         }
 
         if (last < message.length()) {
-            result.append(Text.literal(message.substring(last))
-                    .styled(s -> s.withColor(baseColor)));
+            String segment = message.substring(last);
+            result.append(parseMiniOrPlain(segment, baseColor, useMiniMessage));
         }
 
         return last == 0
-                ? Text.literal(message).styled(s -> s.withColor(baseColor))
+                ? parseMiniOrPlain(message, baseColor, useMiniMessage)
                 : result;
+    }
+
+    private static Text parseMiniOrPlain(String text, TextColor baseColor, boolean useMiniMessage) {
+        if (useMiniMessage) {
+            try {
+                if (ChatMiniMessageParser.containsTags(text)) {
+                    return ChatMiniMessageParser.parse(text, baseColor);
+                }
+            } catch (Throwable t) {
+                viaStyle.LOGGER.debug("[viaStyle] MiniMessage parse error: {}", t.getMessage());
+            }
+        }
+        return Text.literal(text).styled(s -> s.withColor(baseColor));
     }
 
     /**
@@ -180,9 +218,9 @@ public final class MentionHandler {
         String from = (senderName != null && !senderName.isBlank()) ? senderName : "Discord";
         target.sendMessage(
                 Lang.getMutable("mention.notify")
-                        .append(Text.literal(from).formatted(Formatting.AQUA))
-                        .append(Text.literal(" (Discord)").formatted(Formatting.DARK_GRAY))
-                        .append(Text.literal("!").formatted(Formatting.GOLD)),
+                .append(Text.literal(from).styled(s -> s.withColor(TextColor.fromRgb(0xFCDE9D))))
+                .append(Text.literal(" (Discord)").styled(s -> s.withColor(TextColor.fromRgb(0xB0C4DE))))
+                .append(Text.literal("!").styled(s -> s.withColor(TextColor.fromRgb(0xFF5555)))),
                 true); // actionBar = true
     }
 
@@ -199,8 +237,8 @@ public final class MentionHandler {
         // Action bar notification
         target.sendMessage(
                 Lang.getMutable("mention.notify")
-                        .append(Text.literal(sender.getName().getString()).formatted(Formatting.WHITE))
-                        .append(Text.literal("!").formatted(Formatting.GOLD)),
+                .append(Text.literal(sender.getName().getString()).styled(s -> s.withColor(TextColor.fromRgb(0xFCDE9D))))
+                .append(Text.literal("!").styled(s -> s.withColor(TextColor.fromRgb(0xFF5555)))),
                 true); // actionBar = true
     }
 }

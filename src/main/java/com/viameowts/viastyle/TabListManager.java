@@ -23,8 +23,8 @@ import java.util.UUID;
  * Manages the player list (tab) — header, footer, and per-player display names.
  *
  * <p>Configuration is loaded from {@code config/viaStyle/tablist.json} via
- * {@link TabListConfig}.  Supports placeholders, legacy colour codes ({@code &amp;6}),
- * hex colours ({@code #RRGGBB}), and nick-colour integration.</p>
+ * {@link TabListConfig}. Supports placeholders, MiniMessage tags, and
+ * hex colours ({@code #RRGGBB}), plus nick-colour integration.</p>
  *
  * <p>Tick-based updates are driven by {@code SERVER_TICK_END} event from
  * {@link viaStyleServer}.</p>
@@ -255,8 +255,9 @@ public final class TabListManager {
         String processed = format;
         processed = replaceToken(processed, "name", player.getName().getString());
         processed = replaceToken(processed, "ping", String.valueOf(getPlayerPing(player)));
-        processed = replaceToken(processed, "lp_prefix", legacyToAmpersand(LuckPermsHelper.getPrefix(player.getUuid())));
-        processed = replaceToken(processed, "lp_suffix", legacyToAmpersand(LuckPermsHelper.getSuffix(player.getUuid())));
+        processed = replaceToken(processed, "lp_prefix", legacySectionToMiniTags(LuckPermsHelper.getPrefix(player.getUuid())));
+        processed = replaceToken(processed, "lp_suffix", legacySectionToMiniTags(LuckPermsHelper.getSuffix(player.getUuid())));
+        processed = replaceToken(processed, "afk_suffix", getAfkSuffix(player));
 
         // Handle {player} — inject coloured text
         if (containsPlayerToken(processed)) {
@@ -264,6 +265,13 @@ public final class TabListManager {
         }
 
         return PlaceholderHelper.parseFormat(processed, player);
+    }
+
+    private static String getAfkSuffix(ServerPlayerEntity player) {
+        if (AfkManager.isAfk(player.getUuid()) && viaStyle.CONFIG.afkSuffixEnabled && viaStyle.CONFIG.afkSuffix != null && !viaStyle.CONFIG.afkSuffix.isBlank()) {
+            return viaStyle.CONFIG.afkSuffix;
+        }
+        return "";
     }
 
     /**
@@ -286,6 +294,13 @@ public final class TabListManager {
                     result.append(coloredName);
                 } else {
                     result.append(Text.literal(player.getName().getString()));
+                }
+                // Append AFK suffix
+                if (viaStyle.CONFIG.afkSuffixEnabled) {
+                    String afkSuffix = getAfkSuffix(player);
+                    if (!afkSuffix.isEmpty()) {
+                        result.append(PlaceholderHelper.parseFormat(afkSuffix, player));
+                    }
                 }
             }
         }
@@ -317,9 +332,9 @@ public final class TabListManager {
         result = replaceToken(result, "ping", String.valueOf(getPlayerPing(player)));
         result = replaceToken(result, "tps", formatTps(server));
         result = replaceToken(result, "mspt", formatMspt(server));
-        result = replaceToken(result, "lp_prefix", legacyToAmpersand(
+        result = replaceToken(result, "lp_prefix", legacySectionToMiniTags(
             LuckPermsHelper.getPrefix(player.getUuid())));
-        result = replaceToken(result, "lp_suffix", legacyToAmpersand(
+        result = replaceToken(result, "lp_suffix", legacySectionToMiniTags(
             LuckPermsHelper.getSuffix(player.getUuid())));
 
         return result;
@@ -336,9 +351,48 @@ public final class TabListManager {
         return input.contains("{player}") || input.contains("%player%");
         }
 
-    private static String legacyToAmpersand(String input) {
+    private static String legacySectionToMiniTags(String input) {
         if (input == null) return "";
-        return input.replace('§', '&');
+        StringBuilder out = new StringBuilder(input.length() + 32);
+        int len = input.length();
+        for (int i = 0; i < len; i++) {
+            char c = input.charAt(i);
+            if (c == '§' && i + 1 < len) {
+                char code = Character.toLowerCase(input.charAt(i + 1));
+                String tag = switch (code) {
+                    case '0' -> "<black>";
+                    case '1' -> "<dark_blue>";
+                    case '2' -> "<dark_green>";
+                    case '3' -> "<dark_aqua>";
+                    case '4' -> "<dark_red>";
+                    case '5' -> "<dark_purple>";
+                    case '6' -> "<gold>";
+                    case '7' -> "<gray>";
+                    case '8' -> "<dark_gray>";
+                    case '9' -> "<blue>";
+                    case 'a' -> "<green>";
+                    case 'b' -> "<aqua>";
+                    case 'c' -> "<red>";
+                    case 'd' -> "<light_purple>";
+                    case 'e' -> "<yellow>";
+                    case 'f' -> "<white>";
+                    case 'l' -> "<bold>";
+                    case 'm' -> "<strikethrough>";
+                    case 'n' -> "<underlined>";
+                    case 'o' -> "<italic>";
+                    case 'k' -> "<obfuscated>";
+                    case 'r' -> "<reset>";
+                    default -> null;
+                };
+                if (tag != null) {
+                    out.append(tag);
+                    i++;
+                    continue;
+                }
+            }
+            out.append(c);
+        }
+        return out.toString();
     }
 
     private static int getPlayerPing(ServerPlayerEntity player) {
@@ -354,9 +408,9 @@ public final class TabListManager {
         double mspt = server.getAverageTickTime();
         double tps = mspt <= 50 ? 20.0 : 1000.0 / mspt;
         String colour;
-        if (tps >= 18.0) colour = "&a";
-        else if (tps >= 15.0) colour = "&e";
-        else colour = "&c";
+        if (tps >= 18.0) colour = "<#98FB98>";
+        else if (tps >= 15.0) colour = "<#FCDE9D>";
+        else colour = "<#FF9292>";
         return colour + String.format("%.1f", tps);
     }
 
@@ -364,19 +418,19 @@ public final class TabListManager {
         if (server == null) return "N/A";
         double mspt = server.getAverageTickTime();
         String colour;
-        if (mspt <= 50.0) colour = "&a";      // green: normal
-        else if (mspt <= 75.0) colour = "&e"; // yellow: high
-        else colour = "&c";                    // red: very high
+        if (mspt <= 50.0) colour = "<#98FB98>";
+        else if (mspt <= 75.0) colour = "<#FCDE9D>";
+        else colour = "<#FF9292>";
         return colour + String.format("%.1f", mspt);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  Colour + formatting parser  (&-codes, #hex, §-codes, MiniMessage tags)
+    //  Colour + formatting parser  (#hex, §-codes, MiniMessage tags)
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Parses {@code &}-style colour codes, {@code §}-style codes,
-     * {@code #RRGGBB} hex colours, and MiniMessage-style tags into
+    * Parses {@code §}-style codes, {@code #RRGGBB} hex colours,
+    * and MiniMessage-style tags into
      * styled {@link Text}.
      *
      * <p>Supported MiniMessage tags:</p>
@@ -488,10 +542,10 @@ public final class TabListManager {
                         continue;
                     }
 
-                    // ── Closing tags: </bold>, </italic>, </shadow>, etc. ─────
-                    if (lowerTag.startsWith("/")) {
+                    // ── Disable/closing tags: </bold> or <!bold>, </italic> or <!italic>, etc. ─────
+                    if (lowerTag.startsWith("/") || lowerTag.startsWith("!")) {
                         String closingName = lowerTag.substring(1);
-                        // </shadow> — remove persistent shadow color
+                        // </shadow> / <!shadow> — remove persistent shadow color
                         if ("shadow".equals(closingName)) {
                             if (buf.length() > 0) {
                                 result.append(Text.literal(buf.toString()).setStyle(currentStyle));
@@ -583,8 +637,8 @@ public final class TabListManager {
                 }
             }
 
-            // ── &X or §X colour/format codes ──────────────────────
-            if ((c == '&' || c == '§') && i + 1 < len) {
+            // ── §X colour/format codes ─────────────────────────────
+            if (c == '§' && i + 1 < len) {
                 char code = input.charAt(i + 1);
                 Formatting fmt = Formatting.byCode(code);
                 if (fmt != null) {
@@ -697,8 +751,8 @@ public final class TabListManager {
                 }
             }
 
-            // &X or §X
-            if ((c == '&' || c == '§') && i + 1 < input.length()) {
+            // §X
+            if (c == '§' && i + 1 < input.length()) {
                 char code = input.charAt(i + 1);
                 Formatting fmt = Formatting.byCode(code);
                 if (fmt != null) {
@@ -813,7 +867,7 @@ public final class TabListManager {
     }
 
     /**
-     * Strips &-codes, §-codes, and #RRGGBB from text, returning plain characters.
+    * Strips §-codes and #RRGGBB from text, returning plain characters.
      */
     private static String stripCodes(String input) {
         // Strip MiniMessage-style tags (<dark_green>, <gradient:…>, </bold>, etc.)
@@ -823,7 +877,7 @@ public final class TabListManager {
         int i = 0;
         while (i < work.length()) {
             char c = work.charAt(i);
-            if ((c == '&' || c == '§') && i + 1 < work.length()) {
+            if (c == '§' && i + 1 < work.length()) {
                 Formatting fmt = Formatting.byCode(work.charAt(i + 1));
                 if (fmt != null) { i += 2; continue; }
             }

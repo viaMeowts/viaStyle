@@ -1,10 +1,15 @@
 package com.viameowts.viastyle;
 
+import com.viameowts.viastyle.command.AfkCommand;
 import com.viameowts.viastyle.command.ChatModeCommand;
+import com.viameowts.viastyle.command.BroadcastCommand;
 import com.viameowts.viastyle.command.IgnoreCommand;
+import com.viameowts.viastyle.command.JoinLeaveCommand;
 import com.viameowts.viastyle.command.NickColorCommand;
 import com.viameowts.viastyle.command.PrivateMsgCommand;
+import com.viameowts.viastyle.command.PlaceholderViewCommand;
 import com.viameowts.viastyle.command.SocialSpyCommand;
+import com.viameowts.viastyle.command.PmSoundCommand;
 import com.viameowts.viastyle.command.ViaSuperCommand;
 import com.viameowts.viapanel.api.ViaPanelApi;
 import net.fabricmc.api.DedicatedServerModInitializer;
@@ -32,6 +37,7 @@ public class viaStyleServer implements DedicatedServerModInitializer {
         TabListManager.init();
         IgnoreManager.init();
         SocialSpyManager.init();
+        JoinLeaveManager.load();
 
         // ── Commands ───────────────────────────────────────────────────────
         CommandRegistrationCallback.EVENT.register(ChatModeCommand::register);
@@ -40,6 +46,11 @@ public class viaStyleServer implements DedicatedServerModInitializer {
         CommandRegistrationCallback.EVENT.register(NickColorCommand::register);
         CommandRegistrationCallback.EVENT.register(IgnoreCommand::register);
         CommandRegistrationCallback.EVENT.register(SocialSpyCommand::register);
+        CommandRegistrationCallback.EVENT.register(PlaceholderViewCommand::register);
+        CommandRegistrationCallback.EVENT.register(BroadcastCommand::register);
+        CommandRegistrationCallback.EVENT.register(JoinLeaveCommand::register);
+        CommandRegistrationCallback.EVENT.register(AfkCommand::register);
+        CommandRegistrationCallback.EVENT.register(PmSoundCommand::register);
         ViaPanelApi.register(new ViaStylePanelProvider());
         viaStyle.LOGGER.info("Registered viaStyle commands.");
 
@@ -47,11 +58,13 @@ public class viaStyleServer implements DedicatedServerModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             TabListManager.onTick(server);
             NametagManager.onTick(server);
+            AfkManager.tick(server);
         });
 
         // ── Player join / leave — apply nick colours to tab + nametag ──────
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayerEntity joinedPlayer = handler.getPlayer();
+            AfkManager.initPlayer(joinedPlayer);
             NickColorManager.invalidate(joinedPlayer.getUuid());
 
             // Detect first join: PLAY_TIME stat is 0 if never played before
@@ -66,8 +79,8 @@ public class viaStyleServer implements DedicatedServerModInitializer {
                 NametagManager.updateAll(server);
 
                 String fmt = firstJoin
-                        ? viaStyle.CONFIG.firstJoinFormat
-                        : viaStyle.CONFIG.joinFormat;
+                    ? JoinLeaveManager.resolveFirstJoinFormat(joinedPlayer.getUuid(), viaStyle.CONFIG.firstJoinFormat)
+                    : JoinLeaveManager.resolveJoinFormat(joinedPlayer.getUuid(), viaStyle.CONFIG.joinFormat);
                 Text msg = safeJoinLeaveMessage(fmt, joinedPlayer, true);
                 broadcastJoinLeaveRespectVanish(server, joinedPlayer, msg);
             });
@@ -112,12 +125,15 @@ public class viaStyleServer implements DedicatedServerModInitializer {
 
             // Thread-safe map removals are fine immediately on any thread.
             NickColorManager.invalidate(leavingUuid);
+            AfkManager.removePlayer(leavingUuid);
             viaStyle.playerChatModePref.remove(leavingUuid);
             PrivateMsgCommand.clearPlayer(leavingUuid);
+            BroadcastCommand.clearPlayer(leavingUuid);
 
             // Defer entity/scoreboard operations to the server thread.
             server.execute(() -> {
-                Text leaveMsg = safeJoinLeaveMessage(viaStyle.CONFIG.leaveFormat, leavingPlayer, false);
+                String leaveFmt = JoinLeaveManager.resolveLeaveFormat(leavingUuid, viaStyle.CONFIG.leaveFormat);
+                Text leaveMsg = safeJoinLeaveMessage(leaveFmt, leavingPlayer, false);
                 broadcastJoinLeaveRespectVanish(server, leavingPlayer, leaveMsg);
                 NametagManager.removePlayer(leavingPlayer, server);
             });
@@ -167,7 +183,7 @@ public class viaStyleServer implements DedicatedServerModInitializer {
 
     /**
      * Builds a styled join/leave message from a format string.
-     * Supports &-colour codes, #hex, and {name} placeholder
+        * Supports MiniMessage tags, #hex, and {name} placeholder
      * (replaced by the player's nick-coloured name).
      * Package-private so VanishCompat can use it for vanish/unvanish messages.
      */
@@ -197,7 +213,7 @@ public class viaStyleServer implements DedicatedServerModInitializer {
     private static Text safeJoinLeaveMessage(String format, ServerPlayerEntity player, boolean join) {
         String finalFormat = format;
         if (finalFormat == null || finalFormat.isBlank()) {
-            finalFormat = join ? "&a+ &r{name}" : "&c- &r{name}";
+            finalFormat = join ? "<#98FB98>▸ <reset>{name}" : "<#FF9292>• <reset>{name}";
         }
         return buildJoinLeaveMessage(finalFormat, player);
     }

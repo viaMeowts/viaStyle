@@ -28,7 +28,7 @@ import java.util.List;
  *
  * <h3>Color formatting</h3>
  * <ul>
- *   <li>{@code &6} — legacy Minecraft colour codes (0-9, a-f, l, m, n, o, r)</li>
+ *   <li>{@code <#RRGGBB>} / {@code <color:#RRGGBB>} — MiniMessage hex colour tags</li>
  *   <li>{@code #RRGGBB} — hex colour (e.g. {@code #ff5555})</li>
  *   <li>{@code gradient:#RRGGBB:#RRGGBB:text} — gradient text</li>
  * </ul>

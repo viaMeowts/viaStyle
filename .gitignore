@@ -33,5 +33,25 @@ net/
 # Generated scarpet scripts
 tools/generated_scripts/
 
-Instructions.md
 viapanel/
+
+# Build artifacts
+bin/
+release/
+
+# FORK (reference copy)
+FORK/
+
+# Old libs (keep only latest)
+libs/viapanel-2.6.8+mc1.21.11.jar
+libs/viapanel-2.7.0+mc1.21.11.jar
+
+# Instructions (agent guide, not part of mod)
+docs/Instructions.md
+
+# opencode project index (local agent metadata)
+_index/
+
+# Empty directories (no source)
+libs/
+tools/

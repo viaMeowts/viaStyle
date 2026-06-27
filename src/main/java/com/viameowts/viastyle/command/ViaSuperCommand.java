@@ -3,6 +3,7 @@ package com.viameowts.viastyle.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.viameowts.viastyle.Lang;
 import com.viameowts.viastyle.LuckPermsHelper;
 import com.viameowts.viastyle.PlaceholderHelper;
 import com.viameowts.viastyle.TickScheduler;
@@ -19,8 +20,8 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 
 import java.util.List;
 
@@ -114,10 +115,15 @@ public class ViaSuperCommand {
 
         viaStyle.LOGGER.info("[viaStyle] /viaSuper sent \"{}\" ({} word(s)) to {} player(s).",
                 message, words.length, players.size());
+
+        MutableText feedback = Lang.getMutable("viasuper.sent_prefix")
+                .append(Text.literal(String.valueOf(words.length)).styled(s -> s.withColor(Lang.colorGreen())))
+                .append(Lang.get("viasuper.sent_words_suffix"))
+                .append(Text.literal(String.valueOf(server.getPlayerManager().getPlayerList().size())).styled(s -> s.withColor(Lang.colorGreen())))
+                .append(Lang.get("viasuper.sent_players_suffix"));
+
         context.getSource().sendFeedback(
-                () -> Text.literal("[viaStyle] Title sent (" + words.length + " words) to "
-                                + server.getPlayerManager().getPlayerList().size() + " player(s).")
-                        .formatted(Formatting.GREEN),
+                () -> feedback,
                 true
         );
         return players.size();

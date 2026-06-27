@@ -51,6 +51,7 @@ public final class LuckPermsHelper {
     // Direct group-node scanning — finds max weight across ALL groups player is directly in
     private static Method getNodesMethod;           // PermissionHolder.getNodes() → Collection<Node>
     private static Method nodeGetValueMethod;       // Node.getValue() → boolean
+    private static Method nodeGetKeyMethod;         // Node.getKey() → String
     private static Class<?> inheritanceNodeClass;   // InheritanceNode (for instanceof check)
     private static Method getGroupNameFromNodeMethod; // InheritanceNode.getGroupName() → String
 
@@ -113,8 +114,9 @@ public final class LuckPermsHelper {
                 // Direct node scanning (permHolder is in scope from outer try-block)
                 try {
                     getNodesMethod = permHolder.getMethod("getNodes");
-                    nodeGetValueMethod = Class.forName("net.luckperms.api.node.Node")
-                            .getMethod("getValue");
+                        Class<?> nodeClass = Class.forName("net.luckperms.api.node.Node");
+                        nodeGetValueMethod = nodeClass.getMethod("getValue");
+                        nodeGetKeyMethod = nodeClass.getMethod("getKey");
                     inheritanceNodeClass = Class.forName(
                             "net.luckperms.api.node.types.InheritanceNode");
                     getGroupNameFromNodeMethod = inheritanceNodeClass.getMethod("getGroupName");
@@ -236,6 +238,67 @@ public final class LuckPermsHelper {
     }
 
     /**
+     * Returns a direct user-level permission value if explicitly set on the player.
+     * Returns {@code null} when no direct node is present or LP isn't available.
+     */
+    static Boolean getDirectPermission(UUID uuid, String permission) {
+        if (!isAvailable()) return null;
+        if (getNodesMethod == null || nodeGetKeyMethod == null || nodeGetValueMethod == null) return null;
+        try {
+            Object api         = getApiMethod.invoke(null);
+            Object userManager = getUserManagerMethod.invoke(api);
+            Object user        = getUserMethod.invoke(userManager, uuid);
+            if (user == null) return null;
+            @SuppressWarnings("unchecked")
+            java.util.Collection<Object> nodes =
+                    (java.util.Collection<Object>) getNodesMethod.invoke(user);
+            for (Object node : nodes) {
+                String key = (String) nodeGetKeyMethod.invoke(node);
+                if (key == null) continue;
+                if (key.equals(permission)
+                        || (permission.startsWith("viastyle.")
+                        && key.equals("viamod." + permission.substring("viastyle.".length())))) {
+                    Object value = nodeGetValueMethod.invoke(node);
+                    if (value instanceof Boolean b) return b;
+                    if (value != null) return Boolean.parseBoolean(value.toString());
+                }
+            }
+        } catch (Throwable t) {
+            viaStyle.LOGGER.debug("[viaStyle] LuckPerms getDirectPermission error: {}", t.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Returns {@code true} if LuckPerms explicitly denies the permission node.
+     * Used so an explicit player-level deny can override grouped allow and OP fallback.
+     */
+    public static boolean hasPermissionDenied(UUID uuid, String permission) {
+        if (!isAvailable()) return false;
+        if (getPermissionDataMethod == null || checkPermissionMethod == null) return false;
+        try {
+            Object api         = getApiMethod.invoke(null);
+            Object userManager = getUserManagerMethod.invoke(api);
+            Object user        = getUserMethod.invoke(userManager, uuid);
+            if (user == null) return false;
+            Object cachedData  = getCachedDataMethod.invoke(user);
+            Object permData    = getPermissionDataMethod.invoke(cachedData);
+            Object tristate    = checkPermissionMethod.invoke(permData, permission);
+            if (isTristateFalse(tristate)) return true;
+
+            if (permission.startsWith("viastyle.")) {
+                String legacy = "viamod." + permission.substring("viastyle.".length());
+                tristate = checkPermissionMethod.invoke(permData, legacy);
+                return isTristateFalse(tristate);
+            }
+            return false;
+        } catch (Throwable t) {
+            viaStyle.LOGGER.debug("[viaStyle] LuckPerms hasPermissionDenied error: {}", t.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Checks a named LuckPerms permission for a command source, falling back
      * to vanilla OP level check. Designed for Brigadier {@code .requires()} predicates.
      *
@@ -248,6 +311,9 @@ public final class LuckPermsHelper {
      */
     public static boolean checkPermission(ServerCommandSource source, String permission, int opLevel) {
         if (source.getEntity() instanceof ServerPlayerEntity player) {
+            Boolean direct = getDirectPermission(player.getUuid(), permission);
+            if (direct != null) return direct;
+            if (hasPermissionDenied(player.getUuid(), permission)) return false;
             if (hasPermission(player.getUuid(), permission)) return true;
         }
         return hasOpLevel(source, opLevel);
@@ -266,10 +332,32 @@ public final class LuckPermsHelper {
      */
     public static boolean checkPlayerPermission(ServerCommandSource source, String permission, int opLevel) {
         if (source.getEntity() instanceof ServerPlayerEntity player) {
+            Boolean direct = getDirectPermission(player.getUuid(), permission);
+            if (direct != null) return direct;
+            if (hasPermissionDenied(player.getUuid(), permission)) return false;
             if (hasPermission(player.getUuid(), permission)) return true;
             return hasOpLevel(source, opLevel);
         }
         return hasOpLevel(source, opLevel);
+    }
+
+    /**
+     * Player-side permission check with ordered precedence: player → group → default.
+     */
+    public static boolean checkPlayerPermission(ServerPlayerEntity player, String permission, int opLevel) {
+        if (player == null) return false;
+        Boolean direct = getDirectPermission(player.getUuid(), permission);
+        if (direct != null) return direct;
+        if (hasPermissionDenied(player.getUuid(), permission)) return false;
+        if (hasPermission(player.getUuid(), permission)) return true;
+        return hasOpLevel(player, opLevel);
+    }
+
+    /**
+     * Player-side permission check with OP level 2 fallback.
+     */
+    public static boolean checkPlayerPermission(ServerPlayerEntity player, String permission) {
+        return checkPlayerPermission(player, permission, 2);
     }
 
     /**
@@ -290,6 +378,12 @@ public final class LuckPermsHelper {
     private static boolean hasOpLevel(PermissionPredicate predicate, int opLevel) {
         return predicate instanceof LeveledPermissionPredicate leveled
                 && leveled.getLevel().isAtLeast(PermissionLevel.fromLevel(opLevel));
+    }
+
+    private static boolean isTristateFalse(Object tristate) {
+        if (tristate == null) return false;
+        String s = tristate.toString();
+        return "FALSE".equalsIgnoreCase(s) || "DENIED".equalsIgnoreCase(s);
     }
 
     /**
@@ -402,6 +496,61 @@ public final class LuckPermsHelper {
         } catch (Throwable t) {
             return null;
         }
+    }
+
+    /**
+     * Returns the primary LuckPerms group name for a player, or {@code null}
+     * if LuckPerms is unavailable or the player has no data loaded.
+     */
+    public static String getPrimaryGroup(UUID uuid) {
+        if (!isAvailable() || getPrimaryGroupMethod == null) return null;
+        try {
+            Object api = getApiMethod.invoke(null);
+            Object userManager = getUserManagerMethod.invoke(api);
+            Object user = getUserMethod.invoke(userManager, uuid);
+            if (user == null) return null;
+            return (String) getPrimaryGroupMethod.invoke(user);
+        } catch (Throwable t) {
+            viaStyle.LOGGER.debug("[viaStyle] LuckPerms getPrimaryGroup error: {}", t.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Returns all group names that a player is a direct member of,
+     * or an empty list if LP is unavailable.
+     */
+    public static java.util.List<String> getGroupNames(UUID uuid) {
+        java.util.List<String> groups = new java.util.ArrayList<>();
+        if (!isAvailable() || getNodesMethod == null || inheritanceNodeClass == null
+                || getGroupNameFromNodeMethod == null) {
+            String primary = getPrimaryGroup(uuid);
+            if (primary != null) groups.add(primary);
+            return groups;
+        }
+        try {
+            Object api = getApiMethod.invoke(null);
+            Object userManager = getUserManagerMethod.invoke(api);
+            Object user = getUserMethod.invoke(userManager, uuid);
+            if (user == null) return groups;
+            @SuppressWarnings("unchecked")
+            java.util.Collection<Object> nodes =
+                    (java.util.Collection<Object>) getNodesMethod.invoke(user);
+            for (Object node : nodes) {
+                if (!inheritanceNodeClass.isInstance(node)) continue;
+                if (nodeGetValueMethod != null
+                        && !Boolean.TRUE.equals(nodeGetValueMethod.invoke(node))) continue;
+                String groupName = (String) getGroupNameFromNodeMethod.invoke(node);
+                if (groupName != null) groups.add(groupName);
+            }
+        } catch (Throwable t) {
+            viaStyle.LOGGER.debug("[viaStyle] LuckPerms getGroupNames error: {}", t.getMessage());
+        }
+        if (groups.isEmpty()) {
+            String primary = getPrimaryGroup(uuid);
+            if (primary != null) groups.add(primary);
+        }
+        return groups;
     }
 
     /**

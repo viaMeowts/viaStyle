@@ -14,6 +14,8 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
+import java.util.Locale;
+
 /**
  * <pre>
  * /nickcolor set &lt;player&gt; &lt;spec&gt;   — set nick colour (OP 2)
@@ -37,9 +39,13 @@ public class NickColorCommand {
                         .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.command.nickcolor", 2))
                         .then(CommandManager.argument("player", StringArgumentType.word())
                                 .suggests((ctx, b) -> {
+                                                                        String remaining = b.getRemainingLowerCase();
                                     for (ServerPlayerEntity p : ctx.getSource().getServer()
                                             .getPlayerManager().getPlayerList()) {
-                                        b.suggest(p.getName().getString());
+                                                                                String name = p.getName().getString();
+                                                                                if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                                                                                        b.suggest(name);
+                                                                                }
                                     }
                                     return b.buildFuture();
                                 })
@@ -50,9 +56,13 @@ public class NickColorCommand {
                         .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.command.nickcolor", 2))
                         .then(CommandManager.argument("player", StringArgumentType.word())
                                 .suggests((ctx, b) -> {
+                                                                        String remaining = b.getRemainingLowerCase();
                                     for (ServerPlayerEntity p : ctx.getSource().getServer()
                                             .getPlayerManager().getPlayerList()) {
-                                        b.suggest(p.getName().getString());
+                                                                                String name = p.getName().getString();
+                                                                                if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                                                                                        b.suggest(name);
+                                                                                }
                                     }
                                     return b.buildFuture();
                                 })

@@ -287,7 +287,13 @@ public final class NametagManager {
         Formatting closest = teamColor != null ? closestFormatting(teamColor) : null;
         team.setColor(closest != null ? closest : Formatting.RESET);
         team.setPrefix(lpPrefixText);
-        team.setSuffix(Text.empty());
+
+        MutableText suffixText = Text.empty();
+        if (AfkManager.isAfk(player.getUuid()) && viaStyle.CONFIG.afkSuffixEnabled && viaStyle.CONFIG.afkSuffix != null && !viaStyle.CONFIG.afkSuffix.isBlank()) {
+            suffixText = Text.empty().append(PlaceholderHelper.parseFormat(viaStyle.CONFIG.afkSuffix, player));
+        }
+        team.setSuffix(suffixText);
+
         team.setNameTagVisibilityRule(AbstractTeam.VisibilityRule.ALWAYS);
 
         if (!team.getPlayerList().contains(playerName)) {
@@ -357,13 +363,16 @@ public final class NametagManager {
             return;
         }
 
-        // Build the full nametag text: [lpPrefix][coloredName or plain name]
+        // Build the full nametag text: [lpPrefix][coloredName or plain name][afkSuffix]
         MutableText nameText = coloredName != null
                 ? coloredName
                 : Text.literal(playerName);
         MutableText fullText = hasPrefix
                 ? lpPrefixText.copy().append(nameText)
                 : nameText;
+        if (AfkManager.isAfk(player.getUuid()) && viaStyle.CONFIG.afkSuffixEnabled && viaStyle.CONFIG.afkSuffix != null && !viaStyle.CONFIG.afkSuffix.isBlank()) {
+            fullText.append(PlaceholderHelper.parseFormat(viaStyle.CONFIG.afkSuffix, player));
+        }
 
         // 1. Hide vanilla nametag via scoreboard team
         ensureHiddenTeam(scoreboard, teamName, playerName);
@@ -602,8 +611,8 @@ public final class NametagManager {
     }
 
     /**
-     * Converts legacy {@code &} / {@code §} color codes to a styled {@link MutableText}.
-     * Used to render LuckPerms prefixes that use legacy formatting.
+     * Parses prefix formatting into a styled {@link MutableText}.
+     * Used to render LuckPerms prefixes and supports MiniMessage tags.
      */
     private static MutableText parseLegacyColors(String input) {
         if (input == null || input.isEmpty()) return Text.empty();
