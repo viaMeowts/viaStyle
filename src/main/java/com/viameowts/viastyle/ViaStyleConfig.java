@@ -2,6 +2,7 @@ package com.viameowts.viastyle;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.viameowts.viapanel.api.ViaPanelField;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
@@ -48,59 +49,95 @@ public class ViaStyleConfig {
 
     // ── Local Chat ───────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Local Chat Radius", desc = "Distance (blocks) within which local chat is visible.", section = "local", order = 0)
     public double  localChatRadius   = 100.0;
+    @ViaPanelField(value = "Local Trigger", desc = "Prefix char for local chat (empty = local is default).", section = "local", order = 1)
     public String  localTrigger      = "";         // empty = local is default, no prefix needed
+    @ViaPanelField(value = "Local Prefix", desc = "Prefix tag displayed before local chat messages.", section = "local", order = 2)
     public String  localPrefix       = "[L]";
+    @ViaPanelField(value = "Local Prefix Color", desc = "Color of the local chat prefix tag.", section = "local", order = 3)
     public String  localPrefixColor  = "#98FB98";
+    @ViaPanelField(value = "Local Name Color", desc = "Color of player names in local chat.", section = "local", order = 4)
     public String  localNameColor    = "#D9D0D5";
+    @ViaPanelField(value = "Local Message Color", desc = "Color of the message text in local chat.", section = "local", order = 5)
     public String  localMessageColor = "#D9D0D5";
+    @ViaPanelField(value = "Local Format", desc = "Message template for local chat.", section = "local", order = 6)
     public String  localFormat       = "{timestamp}{prefix} {lp_prefix}{name}: {message}";
+    @ViaPanelField(value = "Local Noone Heard", desc = "Show a hint to the sender when nobody is in range to receive the local message.", section = "local", order = 7)
     public boolean localNooneHeard        = false;       // show a hint when nobody received the message
+    @ViaPanelField(value = "Local Noone Heard Message", desc = "Text shown to sender when nobody heard the local message.", section = "local", order = 8)
     public String  localNooneHeardMessage = "Nobody heard you."; // text shown to sender when no one is in range
 
     // ── Chat formatting / MiniMessage ───────────────────────────────────────
 
+    @ViaPanelField(value = "Chat Mini Message Enabled", desc = "Enable MiniMessage parsing in the chat body.", section = "chat_format", order = 0)
     public boolean chatMiniMessageEnabled = true;
+    @ViaPanelField(value = "Chat Mini Message Require Permission", desc = "Require permission for MiniMessage in chat.", section = "chat_format", order = 1)
     public boolean chatMiniMessageRequirePermission = true;
+    @ViaPanelField(value = "Chat Mini Message Permission", desc = "Permission node for MiniMessage in chat.", section = "chat_format", order = 2)
     public String  chatMiniMessagePermission = "viastyle.chat.minimessage";
 
     // ── Global Chat ──────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Global Trigger", desc = "Character that switches a message to global chat (e.g. '!').", section = "global", order = 0)
     public String  globalTrigger     = "!";        // prefix to route message to global chat
+    @ViaPanelField(value = "Global Prefix", desc = "Prefix tag displayed before global chat messages.", section = "global", order = 1)
     public String  globalPrefix       = "[G]";
+    @ViaPanelField(value = "Global Prefix Color", desc = "Color of the global chat prefix tag.", section = "global", order = 2)
     public String  globalPrefixColor  = "#FCDE9D";
+    @ViaPanelField(value = "Global Name Color", desc = "Color of player names in global chat.", section = "global", order = 3)
     public String  globalNameColor    = "#D9D0D5";
+    @ViaPanelField(value = "Global Message Color", desc = "Color of the message text in global chat.", section = "global", order = 4)
     public String  globalMessageColor = "#D9D0D5";
+    @ViaPanelField(value = "Global Format", desc = "Message template for global chat.", section = "global", order = 5)
     public String  globalFormat       = "{timestamp}{prefix} {lp_prefix}{name}: {message}";
 
     // ── Staff Chat ─────────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Staff Trigger", desc = "Character that routes a message to staff-only chat (e.g. '\\').", section = "staff", order = 0)
     public String  staffTrigger      = "\\";       // prefix for staff chat (empty = disabled)
+    @ViaPanelField(value = "Staff Prefix", desc = "Prefix tag displayed before staff chat messages.", section = "staff", order = 1)
     public String  staffPrefix       = "[Staff]";
+    @ViaPanelField(value = "Staff Prefix Color", desc = "Color of the staff chat prefix tag.", section = "staff", order = 2)
     public String  staffPrefixColor  = "#FF5555";
+    @ViaPanelField(value = "Staff Name Color", desc = "Color of player names in staff chat.", section = "staff", order = 3)
     public String  staffNameColor    = "#D9D0D5";
+    @ViaPanelField(value = "Staff Message Color", desc = "Color of the message text in staff chat.", section = "staff", order = 4)
     public String  staffMessageColor = "#FF5555";
+    @ViaPanelField(value = "Staff Format", desc = "Message template for staff chat.", section = "staff", order = 5)
     public String  staffFormat       = "{timestamp}{prefix} {lp_prefix}{name}: {message}";
 
     // ── Timestamp ──────────────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Show Timestamp", desc = "Show a time stamp before every chat message.", section = "timestamp", order = 0)
     public boolean showTimestamp    = false;
+    @ViaPanelField(value = "Timestamp Format", desc = "Java DateTimeFormatter pattern (e.g. HH:mm, HH:mm:ss).", section = "timestamp", order = 1)
     public String  timestampFormat  = "HH:mm";
+    @ViaPanelField(value = "Timestamp Color", desc = "Color of the timestamp text.", section = "timestamp", order = 2)
     public String  timestampColor   = "#B0C4DE";
 
     // ── Integrations ───────────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Use Placeholder Api", desc = "Enable PlaceholderAPI (TextPlaceholderAPI) support for chat and tab.", section = "integrations", order = 0)
     public boolean usePlaceholderApi = true;
+    @ViaPanelField(value = "Use Ban Hammer", desc = "Enable BanHammer integration for mute checks.", section = "integrations", order = 1)
     public boolean useBanHammer      = true;
+    @ViaPanelField(value = "Use Luck Perms", desc = "Enable LuckPerms integration for prefixes and permissions.", section = "integrations", order = 2)
     public boolean useLuckPerms      = true;
 
     // ── BlockBot / Discord ─────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Discord Bridge Mode", desc = "Discord bridge mode: 'auto' (auto-detect BlockBot) or 'none' (disabled).", section = "blockbot", order = 0)
     public String  discordBridgeMode     = "auto";
+    @ViaPanelField(value = "Blockbot Global Channel", desc = "BlockBot channel name used for global chat relay (default: 'chat').", section = "blockbot", order = 1)
     public String  blockbotGlobalChannel = "chat";
+    @ViaPanelField(value = "Blockbot Local Channel", desc = "Channel for local messages (empty = off).", section = "blockbot", order = 2)
     public String  blockbotLocalChannel  = "";
+    @ViaPanelField(value = "Discord Format", desc = "Format for Discord->MC messages. Placeholders: {message}, {channel}.", section = "blockbot", order = 3)
     public String  discordFormat         = "[Discord] {message}";
+    @ViaPanelField(value = "Discord Passthrough", desc = "ON (default): BlockBot handles Discord->MC formatting natively. OFF: viaStyle applies discord_format instead.", section = "blockbot", order = 4)
     public boolean discordPassthrough    = true;  // true = BlockBot handles Discord->MC natively (recommended), false = viaStyle handles it with discordFormat
+    @ViaPanelField(value = "Discord Mention Ping", desc = "Ping an in-game player with sound when @theirName appears in any broadcast message (including Discord).", section = "blockbot", order = 5)
     public boolean discordMentionPing   = true;  // true = scan broadcast game messages for @MCPlayerName and trigger in-game mention sound/highlight (works in any mode)
     /**
      * Manual MC-name → Discord user ID mappings used when @name appears in MC chat.
@@ -108,39 +145,63 @@ public class ViaStyleConfig {
      * Example: "viaMeowts:406777223153057793,SomePlayer:123456789012345678"
      * These take priority over automatic JDA guild member lookup.
      */
+    @ViaPanelField(value = "Discord Mention Mappings", desc = "Manual MC-name to Discord ID mappings. Format: \"Name:DiscordId,Name2:Id2\"", section = "blockbot", order = 6)
     public String  discordMentionMappings = "";  // "MCNick:DiscordId,MCNick2:DiscordId2"
 
     // ── Private Messages ───────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Pm Allow Self Message", desc = "Allow players to send a private message to themselves.", section = "pm", order = 0)
     public boolean pmAllowSelfMessage = false;
+    @ViaPanelField(value = "Pm Ban Hammer Mute", desc = "Check BanHammer mute status on private messages.", section = "pm", order = 1)
     public boolean pmBanHammerMute    = true;
+    @ViaPanelField(value = "Pm Sender Format", desc = "PM format shown to the sender. Placeholders: {receiver}, {message}.", section = "pm", order = 2)
     public String  pmSenderFormat   = "[PM -> {receiver}] {message}";
+    @ViaPanelField(value = "Pm Receiver Format", desc = "PM format shown to the receiver. Placeholders: {sender}, {message}.", section = "pm", order = 3)
     public String  pmReceiverFormat = "[PM <- {sender}] {message}";
+    @ViaPanelField(value = "Pm Color", desc = "Default color applied to private messages.", section = "pm", order = 4)
     public String  pmColor          = "#E8CFDF";
+    @ViaPanelField(value = "Pm Sound Enabled", desc = "Play a sound to the receiver when they get a PM.", section = "pm", order = 5)
     public boolean pmSoundEnabled   = true;
+    @ViaPanelField(value = "Pm Sound Id", desc = "Sound ID for incoming PM notification.", section = "pm", order = 6)
     public String  pmSoundId        = "minecraft:entity.experience_orb.pickup";
+    @ViaPanelField(value = "Pm Sound Volume", desc = "Volume of the PM notification sound.", section = "pm", order = 7)
     public double  pmSoundVolume    = 1.0;
+    @ViaPanelField(value = "Pm Sound Pitch", desc = "Pitch of the PM notification sound.", section = "pm", order = 8)
     public double  pmSoundPitch     = 1.0;
 
     // ── Nick Colour ────────────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Nick Color Enabled", desc = "Master toggle - enable or disable the nick colour system entirely.", section = "nickcolor", order = 0)
     public boolean nickColorEnabled      = true;  // master toggle
+    @ViaPanelField(value = "Nick Color In Chat", desc = "Apply each player's nick colour to their name in chat.", section = "nickcolor", order = 1)
     public boolean nickColorInChat       = true;  // apply nick colour to chat messages
+    @ViaPanelField(value = "Nick Color In Tab", desc = "Apply each player's nick colour to their name in the tab list.", section = "nickcolor", order = 2)
     public boolean nickColorInTab        = true;  // apply nick colour to the tab list
+    @ViaPanelField(value = "Nick Color In Nametag", desc = "Apply each player's nick colour to their above-head nametag.", section = "nickcolor", order = 3)
     public boolean nickColorInNametag    = true;  // apply nick colour to the above-head nametag
+    @ViaPanelField(value = "Nametag Show Lp Prefix", desc = "Show the LuckPerms prefix in the above-head nametag.", section = "nametag", order = 1)
     public boolean nametagShowLpPrefix   = true;  // show LuckPerms prefix in the above-head nametag
+    @ViaPanelField(value = "Nametag Mode", desc = "'team' = 16 vanilla colours via teams. 'display' = TextDisplay entity (full RGB).", section = "nametag", order = 0)
     public String  nametagMode           = "display"; // "team" = 16 vanilla colours, "display" = TextDisplay entity (experimental)
+    @ViaPanelField(value = "Nametag Color Strategy", desc = "'first' = use first gradient colour. 'average' = average of all gradient colours.", section = "nametag", order = 2)
     public String  nametagColorStrategy  = "first"; // "first" = first gradient stop, "average" = average of all stops
+    @ViaPanelField(value = "Tab Sort Mode", desc = "Tab list sort mode: 'normal', 'reverse' (high weight = top), or 'none' (disabled).", section = "tablist", order = 0)
     public String  tabSortMode           = "normal"; // "reverse" = higher weight = higher position, "normal" = higher weight = lower, "none" = disabled
+    @ViaPanelField(value = "Tab Sort Spectators To Bottom", desc = "Push players in spectator mode to the bottom of the tab list.", section = "tablist", order = 1)
     public boolean tabSortSpectatorsToBottom = false; // push spectator-mode players below all others in tab
+    @ViaPanelField(value = "Nametag Orphan Scan Enabled", desc = "Periodically scan worlds for leftover nametag display entities.", section = "nametag", order = 3)
     public boolean nametagOrphanScanEnabled       = true; // periodically scan worlds for leftover TextDisplay entities with no owner
+    @ViaPanelField(value = "Nametag Orphan Scan Interval Ticks", desc = "Interval (ticks) between orphan scans. 200 ticks = 10 seconds.", section = "nametag", order = 4)
     public int     nametagOrphanScanIntervalTicks = 200;  // how often to run the scan (ticks, 200 = 10 seconds)
 
     // ── Mentions ───────────────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Mentions Enabled", desc = "Enable @player mentions in chat (sound + action-bar notification).", section = "mentions", order = 0)
     public boolean mentionsEnabled = true;   // @player mentions in chat
+    @ViaPanelField(value = "Mention Sound", desc = "Play a ping sound when a player is mentioned.", section = "mentions", order = 1)
     public boolean mentionSound    = true;   // play sound on mention
     public boolean mentionBold     = false;  // legacy: kept for config compatibility, style uses non-bold mentions
+    @ViaPanelField(value = "Mention Color", desc = "Highlight color for @mentions in chat (Formatting or #RRGGBB).", section = "mentions", order = 2)
     public String  mentionColor    = "#FFC64C"; // highlight color for @mentions
 
     // ── Chat Placeholders ([item], [pos], [inv], [ec]) ──────────────────────
@@ -271,11 +332,14 @@ public class ViaStyleConfig {
 
     // ── Language ───────────────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Default Language", desc = "Interface language: 'en' (English) or 'ru' (Russian).", section = "language", order = 0)
     public String  defaultLanguage = "en";
 
     // ── viaSuper ───────────────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Via Super Word Sound", desc = "Play a sound for each word sent via viaSuper display.", section = "viasuper", order = 0)
     public boolean viaSuperWordSound     = false; // Play sound for each word in viaSuper
+    @ViaPanelField(value = "Via Super Subtitle Length", desc = "Words with >= this many characters appear as subtitle; shorter ones as big title.", section = "viasuper", order = 1)
     public int     viaSuperSubtitleLength = 7;    // Words with length >= this will be displayed as subtitle
 
     /**
@@ -283,6 +347,7 @@ public class ViaStyleConfig {
         * Use Simplified Text Format tags. {word} = the word itself.
     * Examples: "<#FCDE9D>{word}"  |  "<gr:#FFC64C:#FCDE9D>{word}</gr>"
      */
+    @ViaPanelField(value = "Via Super Title Format", desc = "MiniMessage format for short words shown as big title. {word}", section = "viasuper", order = 2)
     public String viaSuperTitleFormat    = "<#FCDE9D>{word}";
 
     /**
@@ -290,65 +355,104 @@ public class ViaStyleConfig {
         * Use Simplified Text Format tags. {word} = the word itself.
     * Examples: "<#D9D0D5>{word}"  |  "<#B0C4DE>{word}"
      */
+    @ViaPanelField(value = "Via Super Subtitle Format", desc = "MiniMessage format for long words shown as subtitle. {word}", section = "viasuper", order = 3)
     public String viaSuperSubtitleFormat = "<#D9D0D5>{word}";
 
     // ── Console logging ────────────────────────────────────────────────────────
 
     /** Log [Global] messages to server console. */
+    @ViaPanelField(value = "Log Global To Console", desc = "Log global chat messages to the server console.", section = "console", order = 0)
     public boolean logGlobalToConsole   = true;
     /** Log [Local] messages to server console. */
+    @ViaPanelField(value = "Log Local To Console", desc = "Log local chat messages to the server console.", section = "console", order = 1)
     public boolean logLocalToConsole    = true;
     /** Log [Staff] messages to server console. */
+    @ViaPanelField(value = "Log Staff To Console", desc = "Log staff chat messages to the server console.", section = "console", order = 2)
     public boolean logStaffToConsole    = true;
     /** Log [PM] private messages to server console. */
+    @ViaPanelField(value = "Log Privates To Console", desc = "Log private messages to the server console.", section = "console", order = 3)
     public boolean logPrivatesToConsole = true;
 
     // ── Join / Leave Messages ──────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Join Format", desc = "Join message format. Placeholder: {name}. Use MiniMessage tags (e.g. <#98FB98>, <bold>).", section = "joinleave", order = 0)
     public String  joinFormat       = "<#98FB98>+ <reset>{name}";
+    @ViaPanelField(value = "Leave Format", desc = "Leave message format. Placeholder: {name}. Use MiniMessage tags (e.g. <#FF9292>, <italic>).", section = "joinleave", order = 1)
     public String  leaveFormat      = "<#FF5555>- <reset>{name}";
+    @ViaPanelField(value = "First Join Format", desc = "Format for a player's very first join. Placeholder: {name}.", section = "joinleave", order = 2)
     public String  firstJoinFormat  = "<#98FB98>+ <reset>{name} <#D9D0D5>впервые зашел на сервер!";
+    @ViaPanelField(value = "Join Leave Per Player Enabled", desc = "Enable per-player overrides from joinleave-users.json.", section = "joinleave", order = 3)
     public boolean joinLeavePerPlayerEnabled = true;
     public String  joinLeaveSelfPermission = "viastyle.joinleave.self";
 
     // ── AFK ─────────────────────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Afk Enabled", desc = "Enable automatic AFK detection for inactive players.", section = "afk", order = 0)
     public boolean afkEnabled = true;
+    @ViaPanelField(value = "Afk Timeout", desc = "Seconds of inactivity before a player is marked AFK.", section = "afk", order = 1)
     public int     afkTimeout = 300;
     public boolean afkSuffixEnabled = true;
+    @ViaPanelField(value = "Afk Suffix", desc = "Suffix appended to player name when AFK. Supports MiniMessage tags.", section = "afk", order = 2)
     public String  afkSuffix  = " <gray>[AFK]";
+    @ViaPanelField(value = "Afk Suffix Color", desc = "Color override for the AFK suffix (if not specified in suffix field).", section = "afk", order = 3)
     public String  afkSuffixColor = "";
+    @ViaPanelField(value = "Afk Name Color", desc = "Override player name colour when AFK. Empty = keep existing nick colour.", section = "afk", order = 4)
     public String  afkNameColor   = "";
+    @ViaPanelField(value = "Afk Permission", desc = "Permission node required to use /afk command.", section = "afk", order = 5)
     public String  afkPermission   = "viastyle.command.afk";
+    @ViaPanelField(value = "Afk Bypass Permission", desc = "Players with this permission are exempt from automatic AFK detection.", section = "afk", order = 6)
     public String  afkBypassPermission = "viastyle.afk.bypass";
+    @ViaPanelField(value = "Afk Exempt Players", desc = "Comma-separated UUIDs of players exempt from auto-AFK.", section = "afk", order = 7)
     public String  afkExemptPlayers    = "";
+    @ViaPanelField(value = "Afk Enabled Color", desc = "Text color for AFK enabled/joined messages (hex).", section = "afk", order = 8)
     public String  afkEnabledColor  = "#FCDE9D";
+    @ViaPanelField(value = "Afk Disabled Color", desc = "Text color for AFK disabled/left messages (hex).", section = "afk", order = 9)
     public String  afkDisabledColor = "#98FB98";
 
     // ── Join / Leave panel overrides (viapanel helper fields) ───────────────
 
+    @ViaPanelField(value = "Join Leave Panel Player Target", desc = "Target player (online name or UUID) for per-player join/leave override editing.", section = "joinleave_overrides", order = 0)
     public String  joinLeavePanelPlayerTarget = "";
+    @ViaPanelField(value = "Join Leave Panel Player Join Format", desc = "Per-player join format for selected player. Empty value removes player join override.", section = "joinleave_overrides", order = 1)
     public String  joinLeavePanelPlayerJoinFormat = "";
+    @ViaPanelField(value = "Join Leave Panel Player Leave Format", desc = "Per-player leave format for selected player. Empty value removes player leave override.", section = "joinleave_overrides", order = 2)
     public String  joinLeavePanelPlayerLeaveFormat = "";
+    @ViaPanelField(value = "Join Leave Panel Group Target", desc = "LuckPerms group name for group-based join/leave override editing.", section = "joinleave_overrides", order = 3)
     public String  joinLeavePanelGroupTarget = "";
+    @ViaPanelField(value = "Join Leave Panel Group Join Format", desc = "Per-group join format for selected group. Empty value removes group join override.", section = "joinleave_overrides", order = 4)
     public String  joinLeavePanelGroupJoinFormat = "";
+    @ViaPanelField(value = "Join Leave Panel Group Leave Format", desc = "Per-group leave format for selected group. Empty value removes group leave override.", section = "joinleave_overrides", order = 5)
     public String  joinLeavePanelGroupLeaveFormat = "";
 
     // ── Broadcast (/bc) ─────────────────────────────────────────────────────
 
+    @ViaPanelField(value = "Broadcast Enabled", desc = "Enable or disable /bc broadcast command.", section = "broadcast", order = 0)
     public boolean broadcastEnabled = true;
+    @ViaPanelField(value = "Broadcast Permission", desc = "Permission node required to use /bc.", section = "broadcast", order = 1)
     public String  broadcastPermission = "viastyle.command.broadcast";
+    @ViaPanelField(value = "Broadcast Cooldown Seconds", desc = "Cooldown in seconds between broadcasts per player.", section = "broadcast", order = 2)
     public int     broadcastCooldownSeconds = 300;
+    @ViaPanelField(value = "Broadcast Header Format", desc = "Broadcast header format. Tokens: {sender}, {message}.", section = "broadcast", order = 3)
     public String  broadcastHeaderFormat = BROADCAST_HEADER_EN;
+    @ViaPanelField(value = "Broadcast Message Format", desc = "Broadcast body format. Tokens: {sender}, {message}.", section = "broadcast", order = 4)
     public String  broadcastMessageFormat = BROADCAST_MESSAGE_EN;
+    @ViaPanelField(value = "Broadcast Console Sender Name", desc = "Display name used as {sender} when /bc is executed from console.", section = "broadcast", order = 5)
     public String  broadcastConsoleSenderName = BROADCAST_CONSOLE_EN;
+    @ViaPanelField(value = "Broadcast Cooldown Format", desc = "Cooldown warning format. Token: {seconds}.", section = "broadcast", order = 6)
     public String  broadcastCooldownFormat = BROADCAST_COOLDOWN_EN;
+    @ViaPanelField(value = "Broadcast Feedback Format", desc = "Feedback format after successful /bc. Tokens: {count}, {sender}, {message}.", section = "broadcast", order = 7)
     public String  broadcastFeedbackFormat = BROADCAST_FEEDBACK_EN;
+    @ViaPanelField(value = "Broadcast Log Format", desc = "Server log message format. Tokens: {count}, {sender}, {message}.", section = "broadcast", order = 8)
     public String  broadcastLogFormat = "[viaStyle] /bc by {sender} sent \"{message}\" to {count} player(s).";
+    @ViaPanelField(value = "Broadcast Sound Enabled", desc = "Play configured sound for recipients of /bc.", section = "broadcast", order = 9)
     public boolean broadcastSoundEnabled = true;
+    @ViaPanelField(value = "Broadcast Sound Id", desc = "Sound ID used by /bc (example: minecraft:block.note_block.bell).", section = "broadcast", order = 10)
     public String  broadcastSoundId = "minecraft:block.note_block.bell";
+    @ViaPanelField(value = "Broadcast Sound Volume", desc = "Volume of /bc sound.", section = "broadcast", order = 11)
     public double  broadcastSoundVolume = 1.0;
+    @ViaPanelField(value = "Broadcast Sound Pitch", desc = "Pitch of /bc sound.", section = "broadcast", order = 12)
     public double  broadcastSoundPitch = 1.0;
+    @ViaPanelField(value = "Broadcast Send Feedback", desc = "Send feedback message to command source after /bc.", section = "broadcast", order = 13)
     public boolean broadcastSendFeedback = true;
 
     // ══════════════════════════════════════════════════════════════════════════

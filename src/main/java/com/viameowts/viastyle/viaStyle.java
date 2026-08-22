@@ -2,8 +2,13 @@ package com.viameowts.viastyle;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.viameowts.viapanel.api.ViaPanelApi;
+import com.viameowts.viapanel.api.ViaPanelProviders;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -60,6 +66,154 @@ public class viaStyle implements ModInitializer {
 
         // Load persisted per-player PM sound preferences
         loadPmSoundPrefs();
+
+        // viaPanel admin panel — annotation-based provider
+        registerPanel();
+    }
+
+    private static void registerPanel() {
+        ViaPanelApi.register(ViaPanelProviders
+                .builder("viastyle", "viaStyle", CONFIG)
+                .panelTitle(Text.literal("viaStyle Admin Panel"))
+                .permission(source -> LuckPermsHelper.checkPermission(source, "viastyle.panel", 2))
+                .onFieldUpdated((fieldName, source) -> {
+                    if (CONFIG == null) return;
+                    if ("defaultLanguage".equals(fieldName)) {
+                        Lang.setLang(CONFIG.defaultLanguage);
+                        if (CONFIG.applyLocalizedPlaceholderDefaults(CONFIG.defaultLanguage)) {
+                            CONFIG.save();
+                        }
+                    }
+
+                    handleJoinLeaveOverrideField(fieldName, source);
+
+                    if (needsVisualRefresh(fieldName)) {
+                        var server = source.getServer();
+                        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                            NickColorManager.invalidate(player.getUuid());
+                        }
+                        TabListManager.updateAll(server);
+                        NametagManager.updateAll(server);
+                    }
+                })
+                .languageHook(code -> {
+                    if (CONFIG == null) return;
+                    if (!"ru".equalsIgnoreCase(code) && !"en".equalsIgnoreCase(code)) {
+                        return;
+                    }
+                    CONFIG.defaultLanguage = code.toLowerCase(Locale.ROOT);
+                    CONFIG.applyLocalizedPlaceholderDefaults(CONFIG.defaultLanguage);
+                    CONFIG.save();
+                    Lang.setLang(CONFIG.defaultLanguage);
+                })
+                .onReload(() -> {
+                    if (CONFIG == null) return;
+                    Lang.setLang(CONFIG.defaultLanguage);
+                    if (CONFIG.applyLocalizedPlaceholderDefaults(CONFIG.defaultLanguage)) {
+                        CONFIG.save();
+                    }
+                    JoinLeaveManager.reload();
+                    TabListManager.reloadConfig();
+                    NickColorManager.reload();
+
+                    var server = PlaceholderHelper.getServer();
+                    if (server != null) {
+                        TabListManager.updateAll(server);
+                        NametagManager.updateAll(server);
+                    }
+                })
+                .build());
+    }
+
+    private static boolean needsVisualRefresh(String fieldName) {
+        return fieldName.contains("nickColor") || fieldName.contains("nametag")
+                || fieldName.contains("tab") || fieldName.contains("Tab")
+                || fieldName.contains("Nametag") || fieldName.contains("NickColor")
+                || fieldName.contains("Spectator") || fieldName.contains("spectator")
+                || fieldName.contains("afk");
+    }
+
+    private static void handleJoinLeaveOverrideField(String fieldName, ServerCommandSource source) {
+        if (CONFIG == null) return;
+
+        switch (fieldName) {
+            case "joinLeavePanelPlayerTarget" -> {
+                UUID uuid = resolvePlayerTargetUuid(source, CONFIG.joinLeavePanelPlayerTarget);
+                if (uuid == null) return;
+                JoinLeaveManager.MessagePair pair = JoinLeaveManager.getUser(uuid);
+                CONFIG.joinLeavePanelPlayerJoinFormat = pair != null && pair.join != null ? pair.join : "";
+                CONFIG.joinLeavePanelPlayerLeaveFormat = pair != null && pair.leave != null ? pair.leave : "";
+                CONFIG.save();
+            }
+            case "joinLeavePanelPlayerJoinFormat" -> {
+                UUID uuid = resolvePlayerTargetUuid(source, CONFIG.joinLeavePanelPlayerTarget);
+                if (uuid == null) return;
+                String format = normalizePanelField(CONFIG.joinLeavePanelPlayerJoinFormat);
+                if (format == null) JoinLeaveManager.removeUserJoin(uuid);
+                else JoinLeaveManager.setUserJoin(uuid, format);
+            }
+            case "joinLeavePanelPlayerLeaveFormat" -> {
+                UUID uuid = resolvePlayerTargetUuid(source, CONFIG.joinLeavePanelPlayerTarget);
+                if (uuid == null) return;
+                String format = normalizePanelField(CONFIG.joinLeavePanelPlayerLeaveFormat);
+                if (format == null) JoinLeaveManager.removeUserLeave(uuid);
+                else JoinLeaveManager.setUserLeave(uuid, format);
+            }
+            case "joinLeavePanelGroupTarget" -> {
+                String group = normalizeGroupTarget(CONFIG.joinLeavePanelGroupTarget);
+                if (group == null) return;
+                JoinLeaveManager.MessagePair pair = JoinLeaveManager.getGroups().get(group);
+                CONFIG.joinLeavePanelGroupJoinFormat = pair != null && pair.join != null ? pair.join : "";
+                CONFIG.joinLeavePanelGroupLeaveFormat = pair != null && pair.leave != null ? pair.leave : "";
+                CONFIG.save();
+            }
+            case "joinLeavePanelGroupJoinFormat" -> {
+                String group = normalizeGroupTarget(CONFIG.joinLeavePanelGroupTarget);
+                if (group == null) return;
+                String format = normalizePanelField(CONFIG.joinLeavePanelGroupJoinFormat);
+                if (format == null) JoinLeaveManager.removeGroupJoin(group);
+                else JoinLeaveManager.setGroupJoin(group, format);
+            }
+            case "joinLeavePanelGroupLeaveFormat" -> {
+                String group = normalizeGroupTarget(CONFIG.joinLeavePanelGroupTarget);
+                if (group == null) return;
+                String format = normalizePanelField(CONFIG.joinLeavePanelGroupLeaveFormat);
+                if (format == null) JoinLeaveManager.removeGroupLeave(group);
+                else JoinLeaveManager.setGroupLeave(group, format);
+            }
+            default -> {
+            }
+        }
+    }
+
+    private static UUID resolvePlayerTargetUuid(ServerCommandSource source, String target) {
+        String value = normalizePanelField(target);
+        if (value == null) return null;
+
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
+            if (player.getName().getString().equalsIgnoreCase(value)) {
+                return player.getUuid();
+            }
+        }
+
+        source.sendError(Lang.get("joinleave.admin.player_not_found"));
+        return null;
+    }
+
+    private static String normalizePanelField(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static String normalizeGroupTarget(String group) {
+        String normalized = normalizePanelField(group);
+        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
     public static boolean getPlayerPrefersPrefixForGlobal(UUID playerUuid) {

@@ -11,7 +11,6 @@ import com.viameowts.viastyle.command.PlaceholderViewCommand;
 import com.viameowts.viastyle.command.SocialSpyCommand;
 import com.viameowts.viastyle.command.PmSoundCommand;
 import com.viameowts.viastyle.command.ViaSuperCommand;
-import com.viameowts.viapanel.api.ViaPanelApi;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
@@ -51,7 +50,6 @@ public class viaStyleServer implements DedicatedServerModInitializer {
         CommandRegistrationCallback.EVENT.register(JoinLeaveCommand::register);
         CommandRegistrationCallback.EVENT.register(AfkCommand::register);
         CommandRegistrationCallback.EVENT.register(PmSoundCommand::register);
-        ViaPanelApi.register(new ViaStylePanelProvider());
         viaStyle.LOGGER.info("Registered viaStyle commands.");
 
         // ── Tick-based tab list + nametag updates ──────────────────────────
