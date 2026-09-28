@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.viameowts.viastyle.IgnoreManager;
+import com.viameowts.viastyle.network.Network;
 import com.viameowts.viastyle.Lang;
 import com.viameowts.viastyle.LuckPermsHelper;
 import java.util.Locale;
@@ -29,7 +30,7 @@ public class IgnoreCommand {
                                 CommandBuildContext registryAccess,
                                 Commands.CommandSelection environment) {
         dispatcher.register(Commands.literal("ignore")
-            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore"))
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore", 0))
                 .then(Commands.literal("list")
                         .executes(IgnoreCommand::listIgnored))
                 .then(Commands.argument("player", StringArgumentType.word())
@@ -42,13 +43,18 @@ public class IgnoreCommand {
                                     builder.suggest(name);
                                 }
                             }
+                            for (Network.NetPlayer p : Network.remotePlayers()) {
+                                if (!p.vanished() && p.name().toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                                    builder.suggest(p.name());
+                                }
+                            }
                             return builder.buildFuture();
                         })
                         .executes(IgnoreCommand::toggleIgnore))
         );
 
         dispatcher.register(Commands.literal("unignore")
-            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore"))
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore", 0))
                 .then(Commands.argument("player", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
                             String remaining = builder.getRemainingLowerCase();
@@ -61,6 +67,12 @@ public class IgnoreCommand {
                                         if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
                                             builder.suggest(name);
                                         }
+                                    }
+                                }
+                                for (Network.NetPlayer remote : Network.remotePlayers()) {
+                                    if (ignored.contains(remote.uuid())
+                                            && remote.name().toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                                        builder.suggest(remote.name());
                                     }
                                 }
                             }
@@ -76,19 +88,17 @@ public class IgnoreCommand {
             return 0;
         }
         String targetName = StringArgumentType.getString(ctx, "player");
-        ServerPlayer target = ctx.getSource().getServer()
-                .getPlayerList().getPlayerByName(targetName);
-        if (target == null) {
+        UUID targetUuid = resolve(ctx, targetName);
+        if (targetUuid == null) {
             ctx.getSource().sendFailure(Lang.get("error.player_not_found"));
             return 0;
         }
-        if (target == sender) {
+        if (targetUuid.equals(sender.getUUID())) {
             ctx.getSource().sendFailure(Lang.get("ignore.self"));
             return 0;
         }
 
         UUID senderUuid = sender.getUUID();
-        UUID targetUuid = target.getUUID();
 
         if (IgnoreManager.isIgnoring(senderUuid, targetUuid)) {
             IgnoreManager.remove(senderUuid, targetUuid);
@@ -114,14 +124,13 @@ public class IgnoreCommand {
             return 0;
         }
         String targetName = StringArgumentType.getString(ctx, "player");
-        ServerPlayer target = ctx.getSource().getServer()
-                .getPlayerList().getPlayerByName(targetName);
-        if (target == null) {
+        UUID targetUuid = resolve(ctx, targetName);
+        if (targetUuid == null) {
             ctx.getSource().sendFailure(Lang.get("error.player_not_found"));
             return 0;
         }
 
-        if (IgnoreManager.remove(sender.getUUID(), target.getUUID())) {
+        if (IgnoreManager.remove(sender.getUUID(), targetUuid)) {
             ctx.getSource().sendSuccess(
                     () -> Lang.getMutable("ignore.removed")
                             .append(Component.literal(targetName).withStyle(ChatFormatting.WHITE))
@@ -158,8 +167,9 @@ public class IgnoreCommand {
 
         for (UUID uuid : ignored) {
             ServerPlayer p = ctx.getSource().getServer().getPlayerList().getPlayer(uuid);
-            String name = p != null ? p.getName().getString() : uuid.toString();
-            boolean online = p != null;
+            Network.NetPlayer remote = p == null ? Network.findRemote(uuid) : null;
+            String name = p != null ? p.getName().getString() : remote != null ? remote.name() : uuid.toString();
+            boolean online = p != null || remote != null;
             ctx.getSource().sendSuccess(
                     () -> Component.literal("  - ").withStyle(ChatFormatting.GRAY)
                             .append(Component.literal(name).withStyle(online ? ChatFormatting.WHITE : ChatFormatting.DARK_GRAY))
@@ -167,5 +177,13 @@ public class IgnoreCommand {
                     false);
         }
         return 1;
+    }
+
+    /** UUID of a player on this server or elsewhere on the network, or {@code null}. */
+    private static UUID resolve(CommandContext<CommandSourceStack> ctx, String name) {
+        ServerPlayer local = ctx.getSource().getServer().getPlayerList().getPlayerByName(name);
+        if (local != null) return local.getUUID();
+        Network.NetPlayer remote = Network.findRemote(name);
+        return remote != null ? remote.uuid() : null;
     }
 }

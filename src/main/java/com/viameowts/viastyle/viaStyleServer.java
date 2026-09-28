@@ -11,6 +11,7 @@ import com.viameowts.viastyle.command.PlaceholderViewCommand;
 import com.viameowts.viastyle.command.SocialSpyCommand;
 import com.viameowts.viastyle.command.PmSoundCommand;
 import com.viameowts.viastyle.command.ViaSuperCommand;
+import com.viameowts.viastyle.network.Network;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
@@ -26,10 +27,14 @@ import net.minecraft.world.entity.Display;
 import java.util.UUID;
 
 public class viaStyleServer implements DedicatedServerModInitializer {
+    /** Players whose PLAY_TIME was 0 on join, for the local first-join message. */
+    private static final java.util.Set<UUID> FIRST_JOINERS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     @Override
     public void onInitializeServer() {
         viaStyle.LOGGER.info("Initializing viaStyle Server!");
         ChatHandler.register();
+        Network.init();
 
         // ── Init managers ──────────────────────────────────────────────────
         TabListManager.init();
@@ -65,8 +70,12 @@ public class viaStyleServer implements DedicatedServerModInitializer {
             NickColorManager.invalidate(joinedPlayer.getUUID());
 
             // Detect first join: PLAY_TIME stat is 0 if never played before
-            boolean firstJoin = joinedPlayer.getStats()
-                    .getValue(Stats.CUSTOM.get(Stats.PLAY_TIME)) == 0;
+            if (joinedPlayer.getStats().getValue(Stats.CUSTOM.get(Stats.PLAY_TIME)) == 0) {
+                FIRST_JOINERS.add(joinedPlayer.getUUID());
+            }
+
+            // Network mode: the proxy decides between network join and server switch.
+            boolean networkAnnounces = Network.onJoin(joinedPlayer);
 
             // Delay to let LP data load and player to fully join.
             server.execute(() -> {
@@ -75,11 +84,7 @@ public class viaStyleServer implements DedicatedServerModInitializer {
                 TabListManager.updateAll(server);
                 NametagManager.updateAll(server);
 
-                String fmt = firstJoin
-                    ? JoinLeaveManager.resolveFirstJoinFormat(joinedPlayer.getUUID(), viaStyle.CONFIG.firstJoinFormat)
-                    : JoinLeaveManager.resolveJoinFormat(joinedPlayer.getUUID(), viaStyle.CONFIG.joinFormat);
-                Component msg = safeJoinLeaveMessage(fmt, joinedPlayer, true);
-                broadcastJoinLeaveRespectVanish(server, joinedPlayer, msg);
+                if (!networkAnnounces) announceJoinLocally(server, joinedPlayer);
             });
 
             // Delayed re-apply (1 second later) for LP async load
@@ -123,15 +128,19 @@ public class viaStyleServer implements DedicatedServerModInitializer {
             // Thread-safe map removals are fine immediately on any thread.
             NickColorManager.invalidate(leavingUuid);
             AfkManager.removePlayer(leavingUuid);
-            viaStyle.playerChatModePref.remove(leavingUuid);
+            viaStyle.playerChannel.remove(leavingUuid);
+            FIRST_JOINERS.remove(leavingUuid);
+            boolean networkAnnounces = Network.onLeave(leavingPlayer);
             PrivateMsgCommand.clearPlayer(leavingUuid);
             BroadcastCommand.clearPlayer(leavingUuid);
 
             // Defer entity/scoreboard operations to the server thread.
             server.execute(() -> {
-                String leaveFmt = JoinLeaveManager.resolveLeaveFormat(leavingUuid, viaStyle.CONFIG.leaveFormat);
-                Component leaveMsg = safeJoinLeaveMessage(leaveFmt, leavingPlayer, false);
-                broadcastJoinLeaveRespectVanish(server, leavingPlayer, leaveMsg);
+                if (!networkAnnounces) {
+                    String leaveFmt = JoinLeaveManager.resolveLeaveFormat(leavingUuid, viaStyle.CONFIG.leaveFormat);
+                    Component leaveMsg = safeJoinLeaveMessage(leaveFmt, leavingPlayer, false);
+                    broadcastJoinLeaveRespectVanish(server, leavingPlayer, leaveMsg);
+                }
                 NametagManager.removePlayer(leavingPlayer, server);
             });
         });
@@ -205,6 +214,20 @@ public class viaStyleServer implements DedicatedServerModInitializer {
             }
         }
         return result;
+    }
+
+    /** Local (non-network) join announcement: first join is detected by the PLAY_TIME stat. */
+    public static void announceJoinLocally(net.minecraft.server.MinecraftServer server, ServerPlayer player) {
+        boolean firstJoin = FIRST_JOINERS.remove(player.getUUID());
+        String fmt = firstJoin
+                ? JoinLeaveManager.resolveFirstJoinFormat(player.getUUID(), viaStyle.CONFIG.firstJoinFormat)
+                : JoinLeaveManager.resolveJoinFormat(player.getUUID(), viaStyle.CONFIG.joinFormat);
+        broadcastJoinLeaveRespectVanish(server, player, safeJoinLeaveMessage(fmt, player, true));
+    }
+
+    /** Renders a join/leave-style format for {@code player}, with the built-in fallback when empty. */
+    public static Component renderJoinLeave(String format, ServerPlayer player, boolean join) {
+        return safeJoinLeaveMessage(format, player, join);
     }
 
     private static Component safeJoinLeaveMessage(String format, ServerPlayer player, boolean join) {

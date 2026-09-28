@@ -375,6 +375,7 @@ public final class LuckPermsHelper {
     }
 
     private static boolean hasOpLevel(PermissionSet predicate, int opLevel) {
+        if (opLevel <= 0) return true; // level 0 = everyone (non-ops may carry no level at all)
         return predicate instanceof LevelBasedPermissionSet leveled
                 && leveled.level().isEqualOrHigherThan(PermissionLevel.byId(opLevel));
     }

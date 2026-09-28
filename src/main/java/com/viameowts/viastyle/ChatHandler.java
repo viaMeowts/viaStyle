@@ -1,5 +1,7 @@
 package com.viameowts.viastyle;
 
+import com.viameowts.viastyle.network.ChatChannel;
+import com.viameowts.viastyle.network.Network;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
@@ -51,43 +53,52 @@ public class ChatHandler {
         }
 
         ViaStyleConfig cfg = viaStyle.CONFIG;
+        boolean network = Network.enabled();
         String staffTrigger  = (cfg != null && cfg.staffTrigger  != null) ? cfg.staffTrigger  : "\\";
         String globalTrigger = (cfg != null && cfg.globalTrigger != null) ? cfg.globalTrigger : "!";
+        String planetTrigger = (cfg != null && cfg.planetTrigger != null && network) ? cfg.planetTrigger : "";
+        String localTrigger  = (cfg != null && cfg.localTrigger  != null) ? cfg.localTrigger  : "";
 
-        // ── Staff chat ─────────────────────────────────────────────────────
-        if (!staffTrigger.isEmpty() && rawMessage.startsWith(staffTrigger)) {
-            if (hasStaffPermission(sender)) {
-                String content = rawMessage.substring(staffTrigger.length()).trim();
-                if (!content.isEmpty()) {
-                    handleStaffMessage(server, sender, content);
-                }
-            } else {
-                sender.sendSystemMessage(Lang.get("chat.staff_no_permission"));
-            }
-            return;
-        }
-
-        // ── Global / Local routing ─────────────────────────────────────────
-        boolean hasGlobalPrefix = !globalTrigger.isEmpty() && rawMessage.startsWith(globalTrigger);
-        boolean prefersPrefixForGlobal = viaStyle.getPlayerPrefersPrefixForGlobal(sender.getUUID());
-
-        boolean isEffectivelyGlobal;
+        // ── Pick the channel: trigger first, then the player's default ─────
+        ChatChannel defaultChannel = viaStyle.getDefaultChannel(sender.getUUID());
+        ChatChannel channel;
         String messageContent;
-
-        if (hasGlobalPrefix) {
-            isEffectivelyGlobal = prefersPrefixForGlobal;
-            messageContent = rawMessage.substring(globalTrigger.length()).trim();
+        if (!staffTrigger.isEmpty() && rawMessage.startsWith(staffTrigger)) {
+            channel = ChatChannel.STAFF;
+            messageContent = rawMessage.substring(staffTrigger.length());
+        } else if (!globalTrigger.isEmpty() && rawMessage.startsWith(globalTrigger)) {
+            messageContent = rawMessage.substring(globalTrigger.length());
+            if (network) {
+                channel = ChatChannel.NETWORK;
+            } else {
+                // Standalone: the trigger flips between local and server-wide chat.
+                channel = defaultChannel == ChatChannel.LOCAL ? ChatChannel.PLANET : ChatChannel.LOCAL;
+            }
+        } else if (!planetTrigger.isEmpty() && rawMessage.startsWith(planetTrigger)) {
+            channel = ChatChannel.PLANET;
+            messageContent = rawMessage.substring(planetTrigger.length());
+        } else if (!localTrigger.isEmpty() && rawMessage.startsWith(localTrigger)) {
+            channel = ChatChannel.LOCAL;
+            messageContent = rawMessage.substring(localTrigger.length());
         } else {
-            isEffectivelyGlobal = !prefersPrefixForGlobal;
+            channel = defaultChannel;
             messageContent = rawMessage;
         }
-
+        if (channel == ChatChannel.NETWORK && !network) channel = ChatChannel.PLANET;
+        messageContent = messageContent.trim();
         if (messageContent.isEmpty()) return;
 
-        if (isEffectivelyGlobal) {
-            handleGlobalMessage(server, sender, messageContent);
-        } else {
-            handleLocalMessage(server, sender, messageContent);
+        switch (channel) {
+            case STAFF -> {
+                if (!hasStaffPermission(sender)) {
+                    sender.sendSystemMessage(Lang.get("chat.staff_no_permission"));
+                    return;
+                }
+                handleStaffMessage(server, sender, messageContent);
+            }
+            case NETWORK -> handleNetworkMessage(server, sender, messageContent);
+            case PLANET -> handleGlobalMessage(server, sender, messageContent);
+            case LOCAL -> handleLocalMessage(server, sender, messageContent);
         }
 
         // ── Reset AFK timer ────────────────────────────────────────────────
@@ -106,7 +117,7 @@ public class ChatHandler {
 
     // ── Staff permission / handler ─────────────────────────────────────────────
 
-    private static boolean hasStaffPermission(ServerPlayer player) {
+    public static boolean hasStaffPermission(ServerPlayer player) {
         return LuckPermsHelper.checkPlayerPermission(player, "viastyle.staff", 2);
     }
 
@@ -136,6 +147,39 @@ public class ChatHandler {
 
         // SocialSpy relay for staff chat
         relaySocialSpy(server, sender, content, SocialSpyManager.Channel.STAFF, "Staff");
+
+        // Staff chat is network-wide in network mode
+        Network.sendChat(sender, ChatChannel.STAFF, finalMsg, content);
+    }
+
+    // ── Network chat ───────────────────────────────────────────────────────────
+
+    private static void handleNetworkMessage(MinecraftServer server,
+                                             ServerPlayer sender,
+                                             String messageContent) {
+        ViaStyleConfig cfg = viaStyle.CONFIG;
+
+        Map<String, Component> tokens = buildTokens(cfg, sender, messageContent,
+                cfg.networkPrefix, cfg.getNetworkPrefixColor(),
+                cfg.getNetworkNameColor(), cfg.getNetworkMessageColor(), server);
+
+        MutableComponent assembled = parseTemplate(cfg.networkFormat, tokens);
+        Component finalMsg = PlaceholderHelper.process(assembled, sender);
+
+        for (ServerPlayer recipient : server.getPlayerList().getPlayers()) {
+            if (recipient != sender && IgnoreManager.isIgnoring(recipient.getUUID(), sender.getUUID())) {
+                continue;
+            }
+            recipient.sendSystemMessage(finalMsg);
+        }
+        Network.sendChat(sender, ChatChannel.NETWORK, finalMsg, messageContent);
+
+        MentionHandler.processMentions(server, sender, messageContent);
+
+        if (cfg.logNetworkToConsole) {
+            logToConsole("Network", sender.getName().getString(), messageContent);
+        }
+        Network.relayNetworkToDiscord(sender.getName().getString(), messageContent);
     }
 
     // ── Component builders ─────────────────────────────────────────────────────
@@ -237,7 +281,8 @@ public class ChatHandler {
         }
 
         // ── BlockBot relay (global) ────────────────────────────────────────
-        if (BlockBotHelper.isAvailable()) {
+        // In network mode Discord gets the network chat instead (see Network).
+        if (BlockBotHelper.isAvailable() && !Network.enabled()) {
             String channel = cfg.blockbotGlobalChannel;
             if (channel != null && !channel.isEmpty()) {
                 BlockBotHelper.relayToDiscord(sender, messageContent, channel);
@@ -323,6 +368,10 @@ public class ChatHandler {
         tokens.put("prefix",     colored(prefix, prefixColor));
         tokens.put("lp_prefix",  parseLegacyColors(LuckPermsHelper.getPrefix(sender.getUUID())));
         tokens.put("lp_suffix",  parseLegacyColors(LuckPermsHelper.getSuffix(sender.getUUID())));
+        tokens.put("server",     colored(Network.serverDisplayName(), cfg.getServerTagColor()));
+        tokens.put("server_tag", Network.enabled()
+                ? colored(" (" + Network.serverDisplayName() + ")", cfg.getServerTagColor())
+                : Component.empty());
 
         // Nick colour from permission / file overrides the section default
         MutableComponent nickColored = viaStyle.CONFIG.nickColorInChat

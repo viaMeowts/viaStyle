@@ -842,6 +842,20 @@ public final class BlockBotHelper {
         }
     }
 
+    /**
+     * Relays a message on behalf of a player who is not on this server (network chat).
+     * Uses {@code sendRelayMessage(content, channel)}, which needs no player object.
+     */
+    public static void relayToDiscordAs(String playerName, String message, String channel) {
+        if (!isAvailable() || sendRelayMethod == null) return;
+        String resolvedChannel = (channel != null && !channel.isBlank()) ? channel : defaultChatChannel;
+        try {
+            sendRelayMethod.invoke(null, "<" + playerName + "> " + resolveDiscordMentions(message), resolvedChannel);
+        } catch (Throwable t) {
+            viaStyle.LOGGER.warn("[viaStyle] sendRelayMessage failed for network chat: {}", t.getMessage());
+        }
+    }
+
     public static String getDefaultChatChannel() {
         return defaultChatChannel;
     }

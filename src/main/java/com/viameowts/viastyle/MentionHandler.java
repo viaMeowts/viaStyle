@@ -196,6 +196,40 @@ public final class MentionHandler {
     }
 
     /**
+     * Mentions inside a network chat message that came from another server: pings the
+     * mentioned players on this server (sound + action bar, like a local mention).
+     */
+    public static void processRemoteMentions(MinecraftServer server, String senderName, String rawMessage) {
+        ViaStyleConfig cfg = viaStyle.CONFIG;
+        if (cfg == null || !cfg.mentionsEnabled) return;
+        if (server == null || rawMessage == null || rawMessage.isBlank()) return;
+
+        long now = System.currentTimeMillis();
+        Matcher matcher = MENTION_PATTERN.matcher(rawMessage);
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
+        while (matcher.find()) {
+            String mentionedName = matcher.group(1);
+            for (ServerPlayer target : players) {
+                if (!target.getName().getString().equalsIgnoreCase(mentionedName)) continue;
+                Long last = recentPings.get(target.getUUID());
+                if (last != null && now - last < DEDUP_WINDOW_MS) break;
+                recentPings.put(target.getUUID(), now);
+                if (cfg.mentionSound) {
+                    BuiltInRegistries.SOUND_EVENT.get(Identifier.withDefaultNamespace("entity.experience_orb.pickup"))
+                            .ifPresent(entry -> target.connection.send(new ClientboundSoundPacket(
+                                    entry, SoundSource.PLAYERS,
+                                    target.getX(), target.getY(), target.getZ(),
+                                    1.0f, 1.0f, target.getRandom().nextLong())));
+                }
+                target.sendOverlayMessage(Lang.getMutable("mention.notify")
+                        .append(Component.literal(senderName).withStyle(s -> s.withColor(TextColor.fromRgb(0xFCDE9D))))
+                        .append(Component.literal("!").withStyle(s -> s.withColor(TextColor.fromRgb(0xFF5555)))));
+                break;
+            }
+        }
+    }
+
+    /**
      * Notifies a player that they were mentioned from Discord.
      * Plays the configured sound and shows an action-bar message.
      *

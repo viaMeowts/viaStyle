@@ -20,7 +20,7 @@ public class PmSoundCommand {
                                 CommandBuildContext registryAccess,
                                 Commands.CommandSelection environment) {
         dispatcher.register(Commands.literal("msound")
-            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.msound"))
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.msound", 0))
                 .then(Commands.literal("on")
                         .executes(PmSoundCommand::enable))
                 .then(Commands.literal("off")

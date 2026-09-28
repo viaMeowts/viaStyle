@@ -53,7 +53,10 @@ public final class IgnoreManager {
     public static boolean add(UUID ignorer, UUID ignored) {
         Set<UUID> set = ignores.computeIfAbsent(ignorer, k -> ConcurrentHashMap.newKeySet());
         boolean added = set.add(ignored);
-        if (added) save();
+        if (added) {
+            save();
+            com.viameowts.viastyle.network.Profiles.changed(ignorer, com.viameowts.viastyle.network.Profiles.IGNORES);
+        }
         return added;
     }
 
@@ -65,8 +68,22 @@ public final class IgnoreManager {
         if (removed) {
             if (set.isEmpty()) ignores.remove(ignorer);
             save();
+            com.viameowts.viastyle.network.Profiles.changed(ignorer, com.viameowts.viastyle.network.Profiles.IGNORES);
         }
         return removed;
+    }
+
+    /** Replaces a player's whole ignore list (network profile sync). */
+    public static void replace(UUID ignorer, Set<UUID> ignored) {
+        if (ignored == null || ignored.isEmpty()) {
+            if (ignores.remove(ignorer) == null) return;
+        } else {
+            Set<UUID> set = ConcurrentHashMap.newKeySet();
+            set.addAll(ignored);
+            if (set.equals(ignores.get(ignorer))) return;
+            ignores.put(ignorer, set);
+        }
+        save();
     }
 
     /** Returns the set of UUIDs that {@code ignorer} is ignoring (unmodifiable). */

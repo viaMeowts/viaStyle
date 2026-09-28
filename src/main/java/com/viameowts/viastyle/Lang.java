@@ -218,9 +218,36 @@ public class Lang {
         put("pm.error.ignored",
                 styled("That player is ignoring you.", ChatFormatting.RED),
                 styled("Этот игрок игнорирует вас.", ChatFormatting.RED));
+        put("pm.error.not_delivered",
+                styled("The message was not delivered: the other server did not answer.", ChatFormatting.RED),
+                styled("Сообщение не доставлено: другой сервер не ответил.", ChatFormatting.RED));
         put("pm.console_name",
                 Component.literal("Console"),
                 Component.literal("Консоль"));
+
+        // ── Channels (/ch) ─────────────────────────────────────────────────
+        put("channel.name.local",   styled("local", ChatFormatting.GREEN),        styled("локальный", ChatFormatting.GREEN));
+        put("channel.name.planet",  styled("planet", ChatFormatting.YELLOW),      styled("планета", ChatFormatting.YELLOW));
+        put("channel.name.network", styled("network", ChatFormatting.GOLD),       styled("сеть", ChatFormatting.GOLD));
+        put("channel.name.staff",   styled("staff", ChatFormatting.RED),          styled("штаб", ChatFormatting.RED));
+        put("channel.set",
+                styled("Default chat channel: ", ChatFormatting.GRAY),
+                styled("Канал чата по умолчанию: ", ChatFormatting.GRAY));
+        put("channel.current",
+                styled("Your chat channel: ", ChatFormatting.GRAY),
+                styled("Ваш канал чата: ", ChatFormatting.GRAY));
+        put("channel.unknown",
+                styled("Unknown channel. Use: local, planet, network, staff.", ChatFormatting.RED),
+                styled("Неизвестный канал. Доступны: локальный, планета, сеть, штаб.", ChatFormatting.RED));
+        put("channel.no_network",
+                styled("Network chat is off on this server.", ChatFormatting.RED),
+                styled("Сетевой чат на этом сервере выключен.", ChatFormatting.RED));
+        put("channel.triggers",
+                styled("Prefixes: ", ChatFormatting.DARK_GRAY),
+                styled("Префиксы: ", ChatFormatting.DARK_GRAY));
+        put("online.header",
+                styled("Online in the network: ", ChatFormatting.GRAY),
+                styled("Онлайн в сети: ", ChatFormatting.GRAY));
 
         // ── Mentions ───────────────────────────────────────────────────────
         put("mention.notify",

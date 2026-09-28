@@ -43,6 +43,10 @@ public class ViaStyleConfig {
     private static final String BROADCAST_COOLDOWN_RU = "<#FF5555>[viaStyle] Кулдаун: {seconds}с";
     private static final String BROADCAST_FEEDBACK_EN = "<#98FB98>[viaStyle] Broadcast sent to {count} player(s).";
     private static final String BROADCAST_FEEDBACK_RU = "<#98FB98>[viaStyle] Объявление отправлено {count} игрок(ам).";
+    private static final String NETWORK_PREFIX_EN = "[N]";
+    private static final String NETWORK_PREFIX_RU = "[Сеть]";
+    private static final String SWITCH_FORMAT_EN = "<#B0C4DE>✈ <reset>{name} <#B0C4DE>{from} → {to}";
+    private static final String SWITCH_FORMAT_RU = "<#B0C4DE>✈ <reset>{name} <#B0C4DE>{from} → {to}";
     private static final String BROADCAST_HEADER_LEGACY = "<#FFC64C>▸ Объявление ▸ <#FCDE9D>[{sender}]";
     private static final String BROADCAST_MESSAGE_LEGACY = "<#D9D0D5>{message}";
 
@@ -104,7 +108,34 @@ public class ViaStyleConfig {
     @ViaPanelField(value = "Staff Message Color", desc = "Color of the message text in staff chat.", section = "staff", order = 4)
     public String  staffMessageColor = "#FF5555";
     @ViaPanelField(value = "Staff Format", desc = "Message template for staff chat.", section = "staff", order = 5)
-    public String  staffFormat       = "{timestamp}{prefix} {lp_prefix}{name}: {message}";
+    public String  staffFormat       = "{timestamp}{prefix} {lp_prefix}{name}{server_tag}: {message}";
+
+    // ── Server network (Velocity + viastyle-velocity) ──────────────────────
+
+    @ViaPanelField(value = "Network Enabled", desc = "Server network mode: network chat, network-wide staff chat and PMs, synced player settings, one join/leave per network. Needs viastyle-velocity on the proxy.", section = "network", order = 0)
+    public boolean networkEnabled      = false;
+    @ViaPanelField(value = "Default Channel", desc = "Channel for messages without a trigger: local, planet, network or staff. Players change theirs with /ch.", section = "network", order = 1)
+    public String  defaultChannel      = "local";
+    @ViaPanelField(value = "Planet Trigger", desc = "Prefix that sends a message to this server's (planet) chat in network mode (empty = off).", section = "network", order = 2)
+    public String  planetTrigger       = "#";
+    @ViaPanelField(value = "Network Prefix", desc = "Prefix tag of network-wide chat. Network chat uses the global trigger.", section = "network", order = 3)
+    public String  networkPrefix       = NETWORK_PREFIX_EN;
+    @ViaPanelField(value = "Network Prefix Color", desc = "Color of the network chat prefix tag.", section = "network", order = 4)
+    public String  networkPrefixColor  = "#FFC64C";
+    @ViaPanelField(value = "Network Name Color", desc = "Color of player names in network chat.", section = "network", order = 5)
+    public String  networkNameColor    = "#D9D0D5";
+    @ViaPanelField(value = "Network Message Color", desc = "Color of the message text in network chat.", section = "network", order = 6)
+    public String  networkMessageColor = "#FFF0D1";
+    @ViaPanelField(value = "Network Format", desc = "Message template for network chat. {server} = server name, {server_tag} = ' (server)'.", section = "network", order = 7)
+    public String  networkFormat       = "{timestamp}{prefix} {lp_prefix}{name}{server_tag}: {message}";
+    @ViaPanelField(value = "Server Tag Color", desc = "Color of the {server} / {server_tag} tokens.", section = "network", order = 8)
+    public String  serverTagColor      = "#B0C4DE";
+    @ViaPanelField(value = "Announce Switch", desc = "Announce server switches network-wide (instead of leave + join).", section = "network", order = 9)
+    public boolean networkAnnounceSwitch = true;
+    @ViaPanelField(value = "Switch Format", desc = "Server switch message. {name}, {from}, {to}.", section = "network", order = 10)
+    public String  networkSwitchFormat = SWITCH_FORMAT_EN;
+    @ViaPanelField(value = "Discord Bridge Server", desc = "Relay network chat to Discord from this server (enable on exactly one server that has BlockBot).", section = "network", order = 11)
+    public boolean networkDiscordBridge = false;
 
     // ── Timestamp ──────────────────────────────────────────────────────────────
 
@@ -238,6 +269,16 @@ public class ViaStyleConfig {
         boolean changed = false;
 
         changed |= localizeTemplateField(
+            () -> networkPrefix,
+            value -> networkPrefix = value,
+            NETWORK_PREFIX_EN, NETWORK_PREFIX_RU, ru);
+
+        changed |= localizeTemplateField(
+            () -> networkSwitchFormat,
+            value -> networkSwitchFormat = value,
+            SWITCH_FORMAT_EN, SWITCH_FORMAT_RU, ru);
+
+        changed |= localizeTemplateField(
             () -> chatPlaceholderItemEmptyFormat,
             value -> chatPlaceholderItemEmptyFormat = value,
             ITEM_EMPTY_EN, ITEM_EMPTY_RU, ru);
@@ -368,6 +409,9 @@ public class ViaStyleConfig {
     /** Log [Staff] messages to server console. */
     @ViaPanelField(value = "Log Staff To Console", desc = "Log staff chat messages to the server console.", section = "console", order = 2)
     public boolean logStaffToConsole    = true;
+    /** Log [Network] messages to server console. */
+    @ViaPanelField(value = "Log Network To Console", desc = "Log network chat messages to the server console.", section = "console", order = 5)
+    public boolean logNetworkToConsole  = true;
     /** Log [PM] private messages to server console. */
     @ViaPanelField(value = "Log Privates To Console", desc = "Log private messages to the server console.", section = "console", order = 3)
     public boolean logPrivatesToConsole = true;
@@ -634,7 +678,25 @@ public class ViaStyleConfig {
         kv(sb, "prefix_color",  staffPrefixColor,  "Color of the prefix");
         kv(sb, "name_color",    staffNameColor,    "Player name color");
         kv(sb, "message_color", staffMessageColor, "Message text color");
-        kv(sb, "format",        staffFormat,       "Message template");
+        kv(sb, "format",        staffFormat,       "Message template ({server_tag} = ' (server)' in network mode)");
+        sb.append("\n");
+
+        // [network]
+        sb.append("# SERVER NETWORK\n# Velocity + the viastyle-velocity proxy plugin. Channels: local, planet (this server),\n");
+        sb.append("# network (all servers, global trigger), staff (all servers). PMs, ignores and settings work across servers.\n\n");
+        sb.append("[network]\n\n");
+        kv(sb, "enabled",         networkEnabled,        "Turn network mode on (needs viastyle-velocity on the proxy)");
+        kv(sb, "default_channel", defaultChannel,        "Channel without trigger: local, planet, network, staff");
+        kv(sb, "planet_trigger",  planetTrigger,         "Prefix for this server's (planet) chat, network mode only (empty = off)");
+        kv(sb, "prefix",          networkPrefix,         "Network chat prefix text");
+        kv(sb, "prefix_color",    networkPrefixColor,    "Color of the prefix");
+        kv(sb, "name_color",      networkNameColor,      "Player name color");
+        kv(sb, "message_color",   networkMessageColor,   "Message text color");
+        kv(sb, "format",          networkFormat,         "Message template ({server}, {server_tag} available)");
+        kv(sb, "server_tag_color", serverTagColor,       "Color of {server} and {server_tag}");
+        kv(sb, "announce_switch", networkAnnounceSwitch, "Announce server switches instead of leave + join");
+        kv(sb, "switch_format",   networkSwitchFormat,   "Switch message: {name}, {from}, {to}");
+        kv(sb, "discord_bridge",  networkDiscordBridge,  "Relay network chat to Discord from this server (one server only)");
         sb.append("\n");
 
         // [timestamp]
@@ -810,6 +872,7 @@ public class ViaStyleConfig {
         kv(sb, "log_global",   logGlobalToConsole,   "Log [Global] messages to server console");
         kv(sb, "log_local",    logLocalToConsole,     "Log [Local] messages to server console");
         kv(sb, "log_staff",    logStaffToConsole,     "Log [Staff] messages to server console");
+        kv(sb, "log_network",  logNetworkToConsole,   "Log [Network] messages to server console");
         kv(sb, "log_privates", logPrivatesToConsole,  "Log [PM] private messages to server console");
 
         return sb.toString();
@@ -951,6 +1014,19 @@ public class ViaStyleConfig {
         m.put("staff.message_color",  "staffMessageColor");
         m.put("staff.format",         "staffFormat");
 
+        m.put("network.enabled",          "networkEnabled");
+        m.put("network.default_channel",  "defaultChannel");
+        m.put("network.planet_trigger",   "planetTrigger");
+        m.put("network.prefix",           "networkPrefix");
+        m.put("network.prefix_color",     "networkPrefixColor");
+        m.put("network.name_color",       "networkNameColor");
+        m.put("network.message_color",    "networkMessageColor");
+        m.put("network.format",           "networkFormat");
+        m.put("network.server_tag_color", "serverTagColor");
+        m.put("network.announce_switch",  "networkAnnounceSwitch");
+        m.put("network.switch_format",    "networkSwitchFormat");
+        m.put("network.discord_bridge",   "networkDiscordBridge");
+
         m.put("timestamp.enabled",    "showTimestamp");
         m.put("timestamp.format",     "timestampFormat");
         m.put("timestamp.color",      "timestampColor");
@@ -1055,6 +1131,7 @@ public class ViaStyleConfig {
         m.put("console.log_global",   "logGlobalToConsole");
         m.put("console.log_local",    "logLocalToConsole");
         m.put("console.log_staff",    "logStaffToConsole");
+        m.put("console.log_network",  "logNetworkToConsole");
         m.put("console.log_privates", "logPrivatesToConsole");
 
         m.put("afk.enabled", "afkEnabled");
@@ -1124,6 +1201,10 @@ public class ViaStyleConfig {
     public TextColor getGlobalMessageColor() { return resolveColor(globalMessageColor, TextColor.fromRgb(0xD9D0D5)); }
     public TextColor getStaffPrefixColor()   { return resolveColor(staffPrefixColor,   TextColor.fromRgb(0xFF5555)); }
     public TextColor getStaffNameColor()     { return resolveColor(staffNameColor,     TextColor.fromRgb(0xD9D0D5)); }
+    public TextColor getNetworkPrefixColor()  { return resolveColor(networkPrefixColor,  TextColor.fromRgb(0xFFC64C)); }
+    public TextColor getNetworkNameColor()    { return resolveColor(networkNameColor,    TextColor.fromRgb(0xD9D0D5)); }
+    public TextColor getNetworkMessageColor() { return resolveColor(networkMessageColor, TextColor.fromRgb(0xFFF0D1)); }
+    public TextColor getServerTagColor()      { return resolveColor(serverTagColor,      TextColor.fromRgb(0xB0C4DE)); }
     public TextColor getStaffMessageColor()  { return resolveColor(staffMessageColor,  TextColor.fromRgb(0xFF5555)); }
     public TextColor getTimestampColor()     { return resolveColor(timestampColor,      TextColor.fromRgb(0xB0C4DE)); }
     public TextColor getMentionColor()       { return resolveColor(mentionColor,        TextColor.fromRgb(0xFFC64C)); }

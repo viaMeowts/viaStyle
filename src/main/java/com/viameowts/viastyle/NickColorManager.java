@@ -177,18 +177,25 @@ public final class NickColorManager {
      * Sets a manual colour override for a player (saved to file).
      */
     public static void setOverride(UUID uuid, String colorSpec) {
-        fileOverrides.put(uuid, colorSpec);
+        if (colorSpec.equals(fileOverrides.put(uuid, colorSpec))) return;
         cache.remove(uuid);
         saveFile();
+        com.viameowts.viastyle.network.Profiles.changed(uuid, com.viameowts.viastyle.network.Profiles.NICK_COLOR);
+    }
+
+    /** Manual colour override from file / network profile, or {@code null}. */
+    public static String getOverride(UUID uuid) {
+        return fileOverrides.get(uuid);
     }
 
     /**
      * Removes a manual colour override.
      */
     public static void removeOverride(UUID uuid) {
-        fileOverrides.remove(uuid);
+        if (fileOverrides.remove(uuid) == null) return;
         cache.remove(uuid);
         saveFile();
+        com.viameowts.viastyle.network.Profiles.changed(uuid, com.viameowts.viastyle.network.Profiles.NICK_COLOR);
     }
 
     /**

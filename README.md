@@ -1,6 +1,6 @@
-﻿# viaStyle
+# viaStyle
 
-Server-side Fabric mod for Minecraft 1.21.11. Replaces the vanilla chat system with local/global/staff channels, adds per-player nick colours, customisable tab list and nametags, private messaging with sound, mentions, AFK tracking, broadcast commands, join/leave messages, social spy, ignore system, Discord bridge integration, and more.
+Server-side Fabric mod for Minecraft 26.3. Replaces the vanilla chat system with local/global/staff channels (plus network-wide chat on a Velocity network), adds per-player nick colours, customisable tab list and nametags, private messaging with sound, mentions, AFK tracking, broadcast commands, join/leave messages, social spy, ignore system, Discord bridge integration, and more.
 
 No client mod required.
 
@@ -8,8 +8,8 @@ No client mod required.
 
 ## Requirements
 
-- Minecraft **1.21.11**
-- Fabric Loader `>= 0.16.12`
+- Minecraft **26.3**, Java 25
+- Fabric Loader `>= 0.19.5`
 - Fabric API
 - **viaPanel** (separate mod, required for `/viapanel` config UI)
 
@@ -28,7 +28,7 @@ Optional (auto-detected at runtime):
 
 ## Installation
 
-1. Place `viastyle-<version>+mc1.21.11.jar` and `viapanel-<version>+mc1.21.11.jar` into the server's `mods/` folder.
+1. Place `viastyle-<version>+mc26.3.jar` and `viapanel-<version>+mc26.3.jar` into the server's `mods/` folder.
 2. Start the server. A default config is generated at `config/viaStyle/viaStyle.toml`.
 3. Edit the config as needed, then run `/viaStyle reload` or restart the server.
 
@@ -36,19 +36,45 @@ Optional (auto-detected at runtime):
 
 viaPanel is built as a separate standalone mod.
 
-1. Build viaPanel: `./gradlew -p viapanel build`
-2. Copy `viapanel/build/libs/viapanel-*.jar` to `libs/` in the viaStyle root.
+1. Build viaPanel (separate repository): `./gradlew build`
+2. Copy `viapanel/build/libs/viapanel-*.jar` to `../lib/` (a `lib` folder next to the viaStyle checkout).
 3. Build viaStyle: `./gradlew build`
+4. Build the Velocity plugin: `./gradlew -p velocity build`
 
-Output: `build/libs/viastyle-<version>+mc1.21.11.jar`
+Output: `build/libs/viastyle-<version>+mc26.3.jar` and `velocity/build/libs/viastyle-velocity-<version>.jar`. Java 25 is required.
 
 ---
 
 ## Features
 
+### Server network (Velocity)
+
+With several Fabric servers behind a Velocity proxy, viaStyle can act as one chat for the whole network.
+
+1. Put `viastyle-velocity-<version>.jar` into Velocity's `plugins/` folder.
+2. On every backend: set `server_id` / `server_display_name` in `config/viaPanel/viaPanel.toml` (e.g. `arrakis` / `Арракис`; an empty `server_id` falls back to the server folder name), then set `[network] enabled = true` in `viaStyle.toml`.
+
+Channels in network mode:
+
+| Channel | How | Who sees it |
+|---|---|---|
+| Network | `!message` (global trigger) | everyone on every server, with ` (Server)` after the name |
+| Planet | `#message` (`planet_trigger`) or the default | everyone on this server (formats of `[global]`) |
+| Local | `local.trigger`, if set | players within `local.radius` |
+| Staff | `\message` | `viastyle.staff` holders on every server |
+
+- `/ch <local|planet|network|staff>` (also Russian names: `локальный`, `планета`, `сеть`, `штаб`) picks the channel for messages without a prefix; `/ch` alone shows it and the prefixes. `[network] default_channel` is the starting value.
+- `/msg`, `/r`, `/ignore` work across servers; social spy sees PMs from the whole network.
+- Player settings follow the player: ignore list, social spy channels, PM sound, chosen channel and nick colour override are stored by the proxy (`plugins/viastyle/profiles/`).
+- Join and leave are announced once for the whole network; a server switch is one line (`switch_format`, tokens `{name}`, `{from}`, `{to}`). First join is detected network-wide.
+- `/online` lists players by server.
+- Discord: enable `[network] discord_bridge` on exactly one server that has BlockBot; it relays network chat from all servers.
+- `[inv]`/`[ec]` views only open on the server they were shared from; `[item]` hovers work everywhere.
+- The proxy drops `viastyle:net` messages sent by clients, so chat and PMs cannot be spoofed.
+
 ### Chat Channels
 
-Three independent chat channels with fully customisable formats.
+Three independent chat channels with fully customisable formats (four in network mode, see above).
 
 - **Local** — messages visible only within `local_chat_radius` blocks.
 - **Global** — messages reach every online player.
@@ -207,7 +233,22 @@ All settings live in `config/viaStyle/viaStyle.toml`. Missing keys are filled wi
 | prefix_color | `#FF5555` | Color of the prefix tag |
 | name_color | `#D9D0D5` | Color of player names |
 | message_color | `#FF5555` | Color of message text |
-| format | `{timestamp}{prefix} {lp_prefix}{name}: {message}` | Full message template |
+| format | `{timestamp}{prefix} {lp_prefix}{name}{server_tag}: {message}` | Full message template |
+
+### [network]
+
+| Key | Default | Description |
+|---|---|---|
+| enabled | `false` | Network mode (needs `viastyle-velocity` on the proxy) |
+| default_channel | `local` | Channel for messages without a prefix: `local`, `planet`, `network`, `staff` |
+| planet_trigger | `#` | Prefix for this server's chat in network mode (empty = off) |
+| prefix | `[N]` / `[Сеть]` | Network chat tag |
+| prefix_color / name_color / message_color | `#FFC64C` / `#D9D0D5` / `#FFF0D1` | Network chat colours |
+| format | `{timestamp}{prefix} {lp_prefix}{name}{server_tag}: {message}` | Network chat template |
+| server_tag_color | `#B0C4DE` | Colour of `{server}` / `{server_tag}` |
+| announce_switch | `true` | Announce server switches |
+| switch_format | `<#B0C4DE>✈ <reset>{name} <#B0C4DE>{from} → {to}` | Server switch message |
+| discord_bridge | `false` | Relay network chat to Discord from this server (one server only) |
 
 ### [chat_format]
 
@@ -408,6 +449,8 @@ viaStyle registers 19 configuration sections in `/viapanel`:
 |---|---|---|
 | `/viaStyle reload` | `viastyle.command.reload` (or OP 2) | Reload config from disk |
 | `/viaStyle local` / `global` | `viastyle.command.chatmode` | Toggle default chat channel |
+| `/ch [channel]`, `/channel` | `viastyle.command.channel` | Show or set the default chat channel |
+| `/online` | `viastyle.command.online` | Players online, grouped by server |
 | `/viaStyle lang [en\|ru]` | `viastyle.command.lang` | Show or change language |
 | `/viapanel` | `viastyle.panel` (or OP 2) | Open config UI |
 | `/msg <player> <message>` | `viastyle.command.msg` | Send private message |
@@ -442,6 +485,8 @@ viaStyle registers 19 configuration sections in `/viapanel`:
 |---|---|---|
 | `viastyle.command.reload` | OP 2 | `/viaStyle reload` |
 | `viastyle.command.chatmode` | All | `/viaStyle local` / `global` |
+| `viastyle.command.channel` | All | `/ch` |
+| `viastyle.command.online` | All | `/online` |
 | `viastyle.command.lang` | All | `/viaStyle lang` |
 | `viastyle.command.msg` | All | `/msg` / `/m` / `/w` / `/tell` |
 | `viastyle.command.reply` | All | `/reply` / `/r` |
@@ -473,6 +518,8 @@ viaStyle registers 19 configuration sections in `/viapanel`:
 ## Format Tokens and Placeholders
 
 ### Chat format tokens
+
+`{server}` is this server's display name (viaPanel `server_display_name`), `{server_tag}` is ` (Server)` in network mode and empty otherwise.
 
 | Token | Description |
 |---|---|

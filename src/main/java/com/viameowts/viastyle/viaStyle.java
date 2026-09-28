@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.viameowts.viapanel.api.ViaPanelApi;
 import com.viameowts.viapanel.api.ViaPanelProviders;
+import com.viameowts.viastyle.network.ChatChannel;
+import com.viameowts.viastyle.network.Profiles;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
@@ -34,7 +36,8 @@ public class viaStyle implements ModInitializer {
     /** Loaded from config/viaStyle.toml — use CONFIG.localChatRadius instead of hard-coded constants. */
     public static ViaStyleConfig CONFIG;
 
-    public static final Map<UUID, Boolean> playerChatModePref = new ConcurrentHashMap<>();
+    /** Per-player default chat channel (no trigger typed). Missing = config default_channel. */
+    public static final Map<UUID, ChatChannel> playerChannel = new ConcurrentHashMap<>();
     /** Players who have disabled their incoming PM sound via /msound. */
     public static final Set<UUID> playerPmSoundDisabled = ConcurrentHashMap.newKeySet();
 
@@ -216,8 +219,17 @@ public class viaStyle implements ModInitializer {
         return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
-    public static boolean getPlayerPrefersPrefixForGlobal(UUID playerUuid) {
-        return playerChatModePref.getOrDefault(playerUuid, true);
+    /** The channel a message without trigger goes to for this player. */
+    public static ChatChannel getDefaultChannel(UUID playerUuid) {
+        ChatChannel own = playerChannel.get(playerUuid);
+        if (own != null) return own;
+        ChatChannel configured = CONFIG != null ? ChatChannel.parse(CONFIG.defaultChannel) : null;
+        return configured != null ? configured : ChatChannel.LOCAL;
+    }
+
+    public static void setDefaultChannel(UUID playerUuid, ChatChannel channel) {
+        playerChannel.put(playerUuid, channel);
+        Profiles.changed(playerUuid, Profiles.CHANNEL);
     }
 
     public static boolean isPmSoundEnabled(UUID playerUuid) {
@@ -226,27 +238,31 @@ public class viaStyle implements ModInitializer {
 
     /** Toggles PM sound for a player and persists. Returns the new state (true = enabled). */
     public static boolean togglePmSound(UUID playerUuid) {
+        boolean enabled;
         if (playerPmSoundDisabled.contains(playerUuid)) {
             playerPmSoundDisabled.remove(playerUuid);
-            savePmSoundPrefs();
-            return true;
+            enabled = true;
         } else {
             playerPmSoundDisabled.add(playerUuid);
-            savePmSoundPrefs();
-            return false;
+            enabled = false;
         }
+        savePmSoundPrefs();
+        Profiles.changed(playerUuid, Profiles.PM_SOUND_OFF);
+        return enabled;
     }
 
     /** Enables PM sound for a player and persists. */
     public static void enablePmSound(UUID playerUuid) {
-        playerPmSoundDisabled.remove(playerUuid);
+        if (!playerPmSoundDisabled.remove(playerUuid)) return;
         savePmSoundPrefs();
+        Profiles.changed(playerUuid, Profiles.PM_SOUND_OFF);
     }
 
     /** Disables PM sound for a player and persists. */
     public static void disablePmSound(UUID playerUuid) {
-        playerPmSoundDisabled.add(playerUuid);
+        if (!playerPmSoundDisabled.add(playerUuid)) return;
         savePmSoundPrefs();
+        Profiles.changed(playerUuid, Profiles.PM_SOUND_OFF);
     }
 
     private static void loadPmSoundPrefs() {

@@ -25,7 +25,7 @@ public class AfkCommand {
                                 CommandBuildContext registryAccess,
                                 Commands.CommandSelection environment) {
         dispatcher.register(Commands.literal("afk")
-            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.afk"))
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.afk", 0))
             .then(Commands.literal("bypass")
                 .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.afk.bypass.manage", 2))
                 .then(Commands.literal("list")
