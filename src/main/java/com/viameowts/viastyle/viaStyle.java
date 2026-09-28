@@ -4,11 +4,13 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.viameowts.viapanel.api.ViaPanelApi;
 import com.viameowts.viapanel.api.ViaPanelProviders;
+import com.viameowts.viastyle.network.ChatChannel;
+import com.viameowts.viastyle.network.Profiles;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +36,8 @@ public class viaStyle implements ModInitializer {
     /** Loaded from config/viaStyle.toml — use CONFIG.localChatRadius instead of hard-coded constants. */
     public static ViaStyleConfig CONFIG;
 
-    public static final Map<UUID, Boolean> playerChatModePref = new ConcurrentHashMap<>();
+    /** Per-player default chat channel (no trigger typed). Missing = config default_channel. */
+    public static final Map<UUID, ChatChannel> playerChannel = new ConcurrentHashMap<>();
     /** Players who have disabled their incoming PM sound via /msound. */
     public static final Set<UUID> playerPmSoundDisabled = ConcurrentHashMap.newKeySet();
 
@@ -74,7 +77,7 @@ public class viaStyle implements ModInitializer {
     private static void registerPanel() {
         ViaPanelApi.register(ViaPanelProviders
                 .builder("viastyle", "viaStyle", CONFIG)
-                .panelTitle(Text.literal("viaStyle Admin Panel"))
+                .panelTitle(Component.literal("viaStyle Admin Panel"))
                 .permission(source -> LuckPermsHelper.checkPermission(source, "viastyle.panel", 2))
                 .onFieldUpdated((fieldName, source) -> {
                     if (CONFIG == null) return;
@@ -89,8 +92,8 @@ public class viaStyle implements ModInitializer {
 
                     if (needsVisualRefresh(fieldName)) {
                         var server = source.getServer();
-                        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                            NickColorManager.invalidate(player.getUuid());
+                        for (net.minecraft.server.level.ServerPlayer player : server.getPlayerList().getPlayers()) {
+                            NickColorManager.invalidate(player.getUUID());
                         }
                         TabListManager.updateAll(server);
                         NametagManager.updateAll(server);
@@ -133,7 +136,7 @@ public class viaStyle implements ModInitializer {
                 || fieldName.contains("afk");
     }
 
-    private static void handleJoinLeaveOverrideField(String fieldName, ServerCommandSource source) {
+    private static void handleJoinLeaveOverrideField(String fieldName, CommandSourceStack source) {
         if (CONFIG == null) return;
 
         switch (fieldName) {
@@ -186,7 +189,7 @@ public class viaStyle implements ModInitializer {
         }
     }
 
-    private static UUID resolvePlayerTargetUuid(ServerCommandSource source, String target) {
+    private static UUID resolvePlayerTargetUuid(CommandSourceStack source, String target) {
         String value = normalizePanelField(target);
         if (value == null) return null;
 
@@ -195,13 +198,13 @@ public class viaStyle implements ModInitializer {
         } catch (IllegalArgumentException ignored) {
         }
 
-        for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
+        for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
             if (player.getName().getString().equalsIgnoreCase(value)) {
-                return player.getUuid();
+                return player.getUUID();
             }
         }
 
-        source.sendError(Lang.get("joinleave.admin.player_not_found"));
+        source.sendFailure(Lang.get("joinleave.admin.player_not_found"));
         return null;
     }
 
@@ -216,8 +219,17 @@ public class viaStyle implements ModInitializer {
         return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
-    public static boolean getPlayerPrefersPrefixForGlobal(UUID playerUuid) {
-        return playerChatModePref.getOrDefault(playerUuid, true);
+    /** The channel a message without trigger goes to for this player. */
+    public static ChatChannel getDefaultChannel(UUID playerUuid) {
+        ChatChannel own = playerChannel.get(playerUuid);
+        if (own != null) return own;
+        ChatChannel configured = CONFIG != null ? ChatChannel.parse(CONFIG.defaultChannel) : null;
+        return configured != null ? configured : ChatChannel.LOCAL;
+    }
+
+    public static void setDefaultChannel(UUID playerUuid, ChatChannel channel) {
+        playerChannel.put(playerUuid, channel);
+        Profiles.changed(playerUuid, Profiles.CHANNEL);
     }
 
     public static boolean isPmSoundEnabled(UUID playerUuid) {
@@ -226,27 +238,31 @@ public class viaStyle implements ModInitializer {
 
     /** Toggles PM sound for a player and persists. Returns the new state (true = enabled). */
     public static boolean togglePmSound(UUID playerUuid) {
+        boolean enabled;
         if (playerPmSoundDisabled.contains(playerUuid)) {
             playerPmSoundDisabled.remove(playerUuid);
-            savePmSoundPrefs();
-            return true;
+            enabled = true;
         } else {
             playerPmSoundDisabled.add(playerUuid);
-            savePmSoundPrefs();
-            return false;
+            enabled = false;
         }
+        savePmSoundPrefs();
+        Profiles.changed(playerUuid, Profiles.PM_SOUND_OFF);
+        return enabled;
     }
 
     /** Enables PM sound for a player and persists. */
     public static void enablePmSound(UUID playerUuid) {
-        playerPmSoundDisabled.remove(playerUuid);
+        if (!playerPmSoundDisabled.remove(playerUuid)) return;
         savePmSoundPrefs();
+        Profiles.changed(playerUuid, Profiles.PM_SOUND_OFF);
     }
 
     /** Disables PM sound for a player and persists. */
     public static void disablePmSound(UUID playerUuid) {
-        playerPmSoundDisabled.add(playerUuid);
+        if (!playerPmSoundDisabled.add(playerUuid)) return;
         savePmSoundPrefs();
+        Profiles.changed(playerUuid, Profiles.PM_SOUND_OFF);
     }
 
     private static void loadPmSoundPrefs() {

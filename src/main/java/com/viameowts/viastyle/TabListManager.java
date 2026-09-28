@@ -1,16 +1,15 @@
 package com.viameowts.viastyle;
 
-import net.minecraft.network.packet.s2c.play.PlayerListHeaderS2CPacket;
-import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
+import net.minecraft.network.protocol.game.ClientboundTabListPacket;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-import net.minecraft.world.GameMode;
-
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.ArrayList;
@@ -79,12 +78,12 @@ public final class TabListManager {
      * Updates a single player's tab-list display name and sends them the
      * current header/footer.  Also broadcasts the name change to all clients.
      */
-    public static void updatePlayer(ServerPlayerEntity player) {
+    public static void updatePlayer(ServerPlayer player) {
         if (config == null || !config.enabled) return;
 
         // 1) Update display name via duck interface
         if (config.modifyPlayerName) {
-            Text formatted = formatPlayerName(player);
+            Component formatted = formatPlayerName(player);
             if (player instanceof PlayerListNameAccess access) {
                 access.viaStyle$setCustomListName(formatted);
             }
@@ -94,11 +93,11 @@ public final class TabListManager {
         sendHeaderFooter(player);
 
         // 3) Broadcast name update to all clients
-        MinecraftServer server = player.getEntityWorld().getServer();
+        MinecraftServer server = player.level().getServer();
         if (server != null) {
-            server.getPlayerManager().sendToAll(
-                    new PlayerListS2CPacket(
-                            EnumSet.of(PlayerListS2CPacket.Action.UPDATE_DISPLAY_NAME),
+            server.getPlayerList().broadcastAll(
+                    new ClientboundPlayerInfoUpdatePacket(
+                            EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME),
                             List.of(player)));
         }
     }
@@ -109,12 +108,12 @@ public final class TabListManager {
     public static void updateAll(MinecraftServer server) {
         if (config == null || !config.enabled) return;
 
-        List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
 
         // 1) Update all display names
         if (config.modifyPlayerName) {
-            for (ServerPlayerEntity p : players) {
-                Text formatted = formatPlayerName(p);
+            for (ServerPlayer p : players) {
+                Component formatted = formatPlayerName(p);
                 if (p instanceof PlayerListNameAccess access) {
                     access.viaStyle$setCustomListName(formatted);
                 }
@@ -125,15 +124,15 @@ public final class TabListManager {
         applyListOrder(players);
 
         // 3) Send header/footer to each player
-        for (ServerPlayerEntity p : players) {
+        for (ServerPlayer p : players) {
             sendHeaderFooter(p);
         }
 
         // 4) Single bulk packet for name + order updates
-        server.getPlayerManager().sendToAll(
-                new PlayerListS2CPacket(
-                        EnumSet.of(PlayerListS2CPacket.Action.UPDATE_DISPLAY_NAME,
-                                   PlayerListS2CPacket.Action.UPDATE_LIST_ORDER),
+        server.getPlayerList().broadcastAll(
+                new ClientboundPlayerInfoUpdatePacket(
+                        EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME,
+                                   ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LIST_ORDER),
                         players));
     }
 
@@ -153,7 +152,7 @@ public final class TabListManager {
      *   <li><b>none</b> — no sorting, leave vanilla order intact</li>
      * </ul>
      */
-    private static void applyListOrder(List<ServerPlayerEntity> players) {
+    private static void applyListOrder(List<ServerPlayer> players) {
         String mode = viaStyle.CONFIG != null ? viaStyle.CONFIG.tabSortMode : "none";
         boolean spectatorsToBottom = viaStyle.CONFIG != null && viaStyle.CONFIG.tabSortSpectatorsToBottom;
         if ("none".equalsIgnoreCase(mode) && !spectatorsToBottom) return;
@@ -161,24 +160,24 @@ public final class TabListManager {
         // Pre-compute weight once per player — avoids O(n log n) LP reflection calls
         // and guarantees every comparison uses the exact same value.
         Map<UUID, Integer> weights = new HashMap<>(players.size() * 2);
-        for (ServerPlayerEntity p : players) {
-            weights.put(p.getUuid(), LuckPermsHelper.getGroupWeight(p.getUuid()));
+        for (ServerPlayer p : players) {
+            weights.put(p.getUUID(), LuckPermsHelper.getGroupWeight(p.getUUID()));
         }
 
         // Sort: spectators last (if enabled), then weight descending, then name ascending.
-        List<ServerPlayerEntity> sorted = new ArrayList<>(players);
+        List<ServerPlayer> sorted = new ArrayList<>(players);
         sorted.sort((a, b) -> {
             // Spectator grouping (spectators always last)
             if (spectatorsToBottom) {
-                boolean aSpec = a.interactionManager.getGameMode() == GameMode.SPECTATOR;
-                boolean bSpec = b.interactionManager.getGameMode() == GameMode.SPECTATOR;
+                boolean aSpec = a.gameMode.getGameModeForPlayer() == GameType.SPECTATOR;
+                boolean bSpec = b.gameMode.getGameModeForPlayer() == GameType.SPECTATOR;
                 if (aSpec != bSpec) return aSpec ? 1 : -1; // spectators after non-spectators
             }
 
             // Weight sorting (only if sort mode is not "none")
             if (!"none".equalsIgnoreCase(mode)) {
-                int wa = weights.getOrDefault(a.getUuid(), 0);
-                int wb = weights.getOrDefault(b.getUuid(), 0);
+                int wa = weights.getOrDefault(a.getUUID(), 0);
+                int wb = weights.getOrDefault(b.getUUID(), 0);
                 if (wb != wa) return Integer.compare(wb, wa); // higher weight first
             }
 
@@ -191,7 +190,7 @@ public final class TabListManager {
         //   normal  → index 0 (highest weight) gets order 0 (top of list)
         //   reverse → index 0 (highest weight) gets order n-1 (bottom of list)
         for (int i = 0; i < sorted.size(); i++) {
-            ServerPlayerEntity p = sorted.get(i);
+            ServerPlayer p = sorted.get(i);
             if (p instanceof PlayerListNameAccess access) {
                 int order = reverseMode ? (sorted.size() - 1 - i) : i;
                 access.viaStyle$setListOrder(order);
@@ -203,16 +202,16 @@ public final class TabListManager {
     //  Header / Footer
     // ═══════════════════════════════════════════════════════════════════════
 
-    private static void sendHeaderFooter(ServerPlayerEntity player) {
+    private static void sendHeaderFooter(ServerPlayer player) {
         // Skip if the player has active Carpet HUD loggers (e.g. /log tps)
         // so that Carpet's data is not overwritten.
         if (CarpetHelper.hasActiveHud(player)) return;
 
-        MinecraftServer server = player.getEntityWorld().getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) return;
 
-        Text header = Text.empty();
-        Text footer = Text.empty();
+        Component header = Component.empty();
+        Component footer = Component.empty();
 
         if (config.showHeader && config.header != null) {
             header = buildMultiline(config.header, player, server);
@@ -221,15 +220,15 @@ public final class TabListManager {
             footer = buildMultiline(config.footer, player, server);
         }
 
-        player.networkHandler.sendPacket(
-                new PlayerListHeaderS2CPacket(header, footer));
+        player.connection.send(
+                new ClientboundTabListPacket(header, footer));
     }
 
-    private static Text buildMultiline(List<String> lines, ServerPlayerEntity player,
+    private static Component buildMultiline(List<String> lines, ServerPlayer player,
                                         MinecraftServer server) {
-        MutableText result = Text.empty();
+        MutableComponent result = Component.empty();
         for (int i = 0; i < lines.size(); i++) {
-            if (i > 0) result.append(Text.literal("\n"));
+            if (i > 0) result.append(Component.literal("\n"));
             String line = replacePlaceholders(lines.get(i), player, server);
             result.append(PlaceholderHelper.parseFormat(line, player));
         }
@@ -247,7 +246,7 @@ public final class TabListManager {
      * nick colour, it is injected as gradient/coloured text.  All other
      * placeholders are simple string replacements.</p>
      */
-    private static Text formatPlayerName(ServerPlayerEntity player) {
+    private static Component formatPlayerName(ServerPlayer player) {
         String format = config.playerNameFormat;
         if (format == null || format.isEmpty()) format = "{player}";
 
@@ -255,8 +254,8 @@ public final class TabListManager {
         String processed = format;
         processed = replaceToken(processed, "name", player.getName().getString());
         processed = replaceToken(processed, "ping", String.valueOf(getPlayerPing(player)));
-        processed = replaceToken(processed, "lp_prefix", legacySectionToMiniTags(LuckPermsHelper.getPrefix(player.getUuid())));
-        processed = replaceToken(processed, "lp_suffix", legacySectionToMiniTags(LuckPermsHelper.getSuffix(player.getUuid())));
+        processed = replaceToken(processed, "lp_prefix", legacySectionToMiniTags(LuckPermsHelper.getPrefix(player.getUUID())));
+        processed = replaceToken(processed, "lp_suffix", legacySectionToMiniTags(LuckPermsHelper.getSuffix(player.getUUID())));
         processed = replaceToken(processed, "afk_suffix", getAfkSuffix(player));
 
         // Handle {player} — inject coloured text
@@ -267,8 +266,8 @@ public final class TabListManager {
         return PlaceholderHelper.parseFormat(processed, player);
     }
 
-    private static String getAfkSuffix(ServerPlayerEntity player) {
-        if (AfkManager.isAfk(player.getUuid()) && viaStyle.CONFIG.afkSuffixEnabled && viaStyle.CONFIG.afkSuffix != null && !viaStyle.CONFIG.afkSuffix.isBlank()) {
+    private static String getAfkSuffix(ServerPlayer player) {
+        if (AfkManager.isAfk(player.getUUID()) && viaStyle.CONFIG.afkSuffixEnabled && viaStyle.CONFIG.afkSuffix != null && !viaStyle.CONFIG.afkSuffix.isBlank()) {
             return viaStyle.CONFIG.afkSuffix;
         }
         return "";
@@ -278,9 +277,9 @@ public final class TabListManager {
      * Splits on {@code {player}} and builds Text with the nick-coloured
      * name injected inline.
      */
-    private static MutableText buildWithPlayerPlaceholder(String template,
-                                                           ServerPlayerEntity player) {
-        MutableText result = Text.empty();
+    private static MutableComponent buildWithPlayerPlaceholder(String template,
+                                                           ServerPlayer player) {
+        MutableComponent result = Component.empty();
         String[] parts = template.replace("%player%", "{player}").split("\\{player\\}", -1);
 
         for (int i = 0; i < parts.length; i++) {
@@ -289,11 +288,11 @@ public final class TabListManager {
             }
             if (i < parts.length - 1) {
                 // Insert the coloured player name
-                MutableText coloredName = NickColorManager.getColoredName(player);
+                MutableComponent coloredName = NickColorManager.getColoredName(player);
                 if (coloredName != null) {
                     result.append(coloredName);
                 } else {
-                    result.append(Text.literal(player.getName().getString()));
+                    result.append(Component.literal(player.getName().getString()));
                 }
                 // Append AFK suffix
                 if (viaStyle.CONFIG.afkSuffixEnabled) {
@@ -312,7 +311,7 @@ public final class TabListManager {
     //  Placeholder resolution (for header/footer)
     // ═══════════════════════════════════════════════════════════════════════
 
-    private static String replacePlaceholders(String template, ServerPlayerEntity player,
+    private static String replacePlaceholders(String template, ServerPlayer player,
                                                MinecraftServer server) {
         if (template == null) return "";
         String result = template;
@@ -328,14 +327,14 @@ public final class TabListManager {
         result = result.replace("%server:players%", visibleCount);
         result = result.replace("%viastyle:online%", visibleCount);
         result = replaceToken(result, "max", String.valueOf(
-            server != null ? server.getPlayerManager().getMaxPlayerCount() : 20));
+            server != null ? server.getPlayerList().getMaxPlayers() : 20));
         result = replaceToken(result, "ping", String.valueOf(getPlayerPing(player)));
         result = replaceToken(result, "tps", formatTps(server));
         result = replaceToken(result, "mspt", formatMspt(server));
         result = replaceToken(result, "lp_prefix", legacySectionToMiniTags(
-            LuckPermsHelper.getPrefix(player.getUuid())));
+            LuckPermsHelper.getPrefix(player.getUUID())));
         result = replaceToken(result, "lp_suffix", legacySectionToMiniTags(
-            LuckPermsHelper.getSuffix(player.getUuid())));
+            LuckPermsHelper.getSuffix(player.getUUID())));
 
         return result;
     }
@@ -395,9 +394,9 @@ public final class TabListManager {
         return out.toString();
     }
 
-    private static int getPlayerPing(ServerPlayerEntity player) {
+    private static int getPlayerPing(ServerPlayer player) {
         try {
-            return player.networkHandler.getLatency();
+            return player.connection.latency();
         } catch (Throwable e) {
             return 0;
         }
@@ -405,7 +404,7 @@ public final class TabListManager {
 
     private static String formatTps(MinecraftServer server) {
         if (server == null) return "N/A";
-        double mspt = server.getAverageTickTime();
+        double mspt = server.getCurrentSmoothedTickTime();
         double tps = mspt <= 50 ? 20.0 : 1000.0 / mspt;
         String colour;
         if (tps >= 18.0) colour = "<#98FB98>";
@@ -416,7 +415,7 @@ public final class TabListManager {
 
     private static String formatMspt(MinecraftServer server) {
         if (server == null) return "N/A";
-        double mspt = server.getAverageTickTime();
+        double mspt = server.getCurrentSmoothedTickTime();
         String colour;
         if (mspt <= 50.0) colour = "<#98FB98>";
         else if (mspt <= 75.0) colour = "<#FCDE9D>";
@@ -431,7 +430,7 @@ public final class TabListManager {
     /**
     * Parses {@code §}-style codes, {@code #RRGGBB} hex colours,
     * and MiniMessage-style tags into
-     * styled {@link Text}.
+     * styled {@link Component}.
      *
      * <p>Supported MiniMessage tags:</p>
      * <ul>
@@ -444,8 +443,8 @@ public final class TabListManager {
      *   <li>{@code <color:#RRGGBB>} or {@code <#RRGGBB>} — hex colour tag</li>
      * </ul>
      */
-    static MutableText parseLegacyAndHex(String input) {
-        if (input == null || input.isEmpty()) return Text.empty().copy();
+    static MutableComponent parseLegacyAndHex(String input) {
+        if (input == null || input.isEmpty()) return Component.empty().copy();
 
         // Pre-process: handle MiniMessage tags that wrap content
         // We process from the inside out to handle nesting
@@ -456,8 +455,8 @@ public final class TabListManager {
     /**
      * Full parser that handles MiniMessage tags + legacy codes.
      */
-    private static MutableText parseMiniAndLegacy(String input) {
-        MutableText result = Text.empty();
+    private static MutableComponent parseMiniAndLegacy(String input) {
+        MutableComponent result = Component.empty();
 
         int i = 0;
         int len = input.length();
@@ -479,7 +478,7 @@ public final class TabListManager {
                     if (lowerTag.startsWith("gradient:") || lowerTag.startsWith("gr:")) {
                         // Flush buffer
                         if (buf.length() > 0) {
-                            result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                             buf.setLength(0);
                         }
                         String gradientSpec = lowerTag.startsWith("gr:")
@@ -502,7 +501,7 @@ public final class TabListManager {
                     // Wrapping:   <shadow>text</shadow>
                     if (tagContent.toLowerCase().startsWith("shadow")) {
                         if (buf.length() > 0) {
-                            result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                             buf.setLength(0);
                         }
                         String shadowHexStr = null;
@@ -512,7 +511,7 @@ public final class TabListManager {
                         int shadowArgb;
                         if (shadowHexStr != null && !shadowHexStr.isBlank()) {
                             TextColor tc = parseHex(shadowHexStr.startsWith("#") ? shadowHexStr : "#" + shadowHexStr);
-                            shadowArgb = tc != null ? (0xFF000000 | tc.getRgb()) : 0xFF3F3F3F;
+                            shadowArgb = tc != null ? (0xFF000000 | tc.getValue()) : 0xFF3F3F3F;
                         } else {
                             shadowArgb = 0xFF3F3F3F; // standard MC dark shadow
                         }
@@ -534,7 +533,7 @@ public final class TabListManager {
                     Style newStyle = tryParseFormattingTag(lowerTag, currentStyle);
                     if (newStyle != null) {
                         if (buf.length() > 0) {
-                            result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                             buf.setLength(0);
                         }
                         currentStyle = newStyle;
@@ -548,7 +547,7 @@ public final class TabListManager {
                         // </shadow> / <!shadow> — remove persistent shadow color
                         if ("shadow".equals(closingName)) {
                             if (buf.length() > 0) {
-                                result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                                 buf.setLength(0);
                             }
                             currentStyle = currentStyle.withShadowColor((Integer) null);
@@ -558,7 +557,7 @@ public final class TabListManager {
                         Style resetStyle = tryRemoveFormattingTag(closingName, currentStyle);
                         if (resetStyle != null) {
                             if (buf.length() > 0) {
-                                result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                                 buf.setLength(0);
                             }
                             currentStyle = resetStyle;
@@ -572,7 +571,7 @@ public final class TabListManager {
                         TextColor tc = parseHex(lowerTag);
                         if (tc != null) {
                             if (buf.length() > 0) {
-                                result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                                 buf.setLength(0);
                             }
                             currentStyle = currentStyle.withColor(tc);
@@ -585,7 +584,7 @@ public final class TabListManager {
                         TextColor tc = parseHex(colorVal.startsWith("#") ? colorVal : "#" + colorVal);
                         if (tc != null) {
                             if (buf.length() > 0) {
-                                result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                                 buf.setLength(0);
                             }
                             currentStyle = currentStyle.withColor(tc);
@@ -596,13 +595,13 @@ public final class TabListManager {
 
                     // ── Named Minecraft colour (<dark_green>, <red>, <gold>, etc.) ──
                     try {
-                        Formatting namedFmt = Formatting.valueOf(lowerTag.toUpperCase());
-                        if (!namedFmt.isModifier() && namedFmt.getColorValue() != null) {
+                        ChatFormatting namedFmt = ChatFormatting.valueOf(lowerTag.toUpperCase());
+                        if (TextColor.fromLegacyFormat(namedFmt) != null) {
                             if (buf.length() > 0) {
-                                result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                                 buf.setLength(0);
                             }
-                            currentStyle = currentStyle.withColor(TextColor.fromFormatting(namedFmt));
+                            currentStyle = currentStyle.withColor(TextColor.fromLegacyFormat(namedFmt));
                             i = closeAngle + 1;
                             continue;
                         }
@@ -611,7 +610,7 @@ public final class TabListManager {
                     // ── <reset> ────────────────────────────────────
                     if ("reset".equals(lowerTag)) {
                         if (buf.length() > 0) {
-                            result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                             buf.setLength(0);
                         }
                         currentStyle = Style.EMPTY;
@@ -628,7 +627,7 @@ public final class TabListManager {
                 TextColor tc = parseHex(hex);
                 if (tc != null) {
                     if (buf.length() > 0) {
-                        result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                        result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                         buf.setLength(0);
                     }
                     currentStyle = Style.EMPTY.withColor(tc);
@@ -640,15 +639,15 @@ public final class TabListManager {
             // ── §X colour/format codes ─────────────────────────────
             if (c == '§' && i + 1 < len) {
                 char code = input.charAt(i + 1);
-                Formatting fmt = Formatting.byCode(code);
+                ChatFormatting fmt = ChatFormatting.getByCode(code);
                 if (fmt != null) {
                     if (buf.length() > 0) {
-                        result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                        result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                         buf.setLength(0);
                     }
-                    if (fmt == Formatting.RESET) {
+                    if (fmt == ChatFormatting.RESET) {
                         currentStyle = Style.EMPTY;
-                    } else if (fmt.isColor()) {
+                    } else if (TextColor.fromLegacyFormat(fmt) != null) {
                         currentStyle = Style.EMPTY.withColor(fmt);
                     } else {
                         currentStyle = applyModifier(currentStyle, fmt);
@@ -663,7 +662,7 @@ public final class TabListManager {
         }
 
         if (buf.length() > 0) {
-            result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
         }
 
         return result;
@@ -673,8 +672,8 @@ public final class TabListManager {
      * Parses a portion of text with legacy codes, starting from a given style.
      * Used after a MiniMessage tag has set up a base style (e.g. shadow).
      */
-    private static MutableText parseLegacyPortion(String input, Style baseStyle) {
-        MutableText result = Text.empty();
+    private static MutableComponent parseLegacyPortion(String input, Style baseStyle) {
+        MutableComponent result = Component.empty();
         StringBuilder buf = new StringBuilder();
         Style currentStyle = baseStyle;
 
@@ -691,7 +690,7 @@ public final class TabListManager {
                     // <gradient:...> or <gr:...>text</gradient|gr> inside shadow
                     if (tagContent.startsWith("gradient:") || tagContent.startsWith("gr:")) {
                         if (buf.length() > 0) {
-                            result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                             buf.setLength(0);
                         }
                         String gradientSpec = tagContent.startsWith("gr:")
@@ -711,7 +710,7 @@ public final class TabListManager {
                         TextColor tc = parseHex(tagContent);
                         if (tc != null) {
                             if (buf.length() > 0) {
-                                result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                                 buf.setLength(0);
                             }
                             currentStyle = currentStyle.withColor(tc);
@@ -722,13 +721,13 @@ public final class TabListManager {
 
                     // Named Minecraft colour in parseLegacyPortion (<dark_green>, <red>, etc.)
                     try {
-                        Formatting namedFmtP = Formatting.valueOf(tagContent.toUpperCase());
-                        if (!namedFmtP.isModifier() && namedFmtP.getColorValue() != null) {
+                        ChatFormatting namedFmtP = ChatFormatting.valueOf(tagContent.toUpperCase());
+                        if (TextColor.fromLegacyFormat(namedFmtP) != null) {
                             if (buf.length() > 0) {
-                                result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                                 buf.setLength(0);
                             }
-                            currentStyle = currentStyle.withColor(TextColor.fromFormatting(namedFmtP));
+                            currentStyle = currentStyle.withColor(TextColor.fromLegacyFormat(namedFmtP));
                             i = closeAngle + 1;
                             continue;
                         }
@@ -742,7 +741,7 @@ public final class TabListManager {
                 TextColor tc = parseHex(hex);
                 if (tc != null) {
                     if (buf.length() > 0) {
-                        result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                        result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                         buf.setLength(0);
                     }
                     currentStyle = currentStyle.withColor(tc);
@@ -754,15 +753,15 @@ public final class TabListManager {
             // §X
             if (c == '§' && i + 1 < input.length()) {
                 char code = input.charAt(i + 1);
-                Formatting fmt = Formatting.byCode(code);
+                ChatFormatting fmt = ChatFormatting.getByCode(code);
                 if (fmt != null) {
                     if (buf.length() > 0) {
-                        result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+                        result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                         buf.setLength(0);
                     }
-                    if (fmt == Formatting.RESET) {
+                    if (fmt == ChatFormatting.RESET) {
                         currentStyle = baseStyle; // reset to base, not EMPTY (keep shadow etc.)
-                    } else if (fmt.isColor()) {
+                    } else if (TextColor.fromLegacyFormat(fmt) != null) {
                         currentStyle = baseStyle.withColor(fmt);
                     } else {
                         currentStyle = applyModifier(currentStyle, fmt);
@@ -777,7 +776,7 @@ public final class TabListManager {
         }
 
         if (buf.length() > 0) {
-            result.append(Text.literal(buf.toString()).setStyle(currentStyle));
+            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
         }
 
         return result;
@@ -818,7 +817,7 @@ public final class TabListManager {
      * The gradient spec is like {@code #ff0000:#00ff00} (colon-separated hex stops).
      * Extra style (e.g. shadow) from {@code baseStyle} is preserved on each character.
      */
-    private static MutableText applyGradientToText(String text, String gradientSpec, Style baseStyle) {
+    private static MutableComponent applyGradientToText(String text, String gradientSpec, Style baseStyle) {
         String[] parts = gradientSpec.split(":");
         // Collect colour stops
         java.util.List<Integer> stops = new java.util.ArrayList<>();
@@ -826,29 +825,29 @@ public final class TabListManager {
             String hex = p.trim();
             if (!hex.startsWith("#")) hex = "#" + hex;
             TextColor tc = parseHex(hex);
-            if (tc != null) stops.add(tc.getRgb());
+            if (tc != null) stops.add(tc.getValue());
         }
         if (stops.size() < 2) {
             // Fallback: single colour or invalid
-            return Text.literal(text).setStyle(
+            return Component.literal(text).setStyle(
                     stops.isEmpty() ? baseStyle
                             : baseStyle.withColor(TextColor.fromRgb(stops.getFirst())));
         }
 
         int[] colors = stops.stream().mapToInt(Integer::intValue).toArray();
         int textLen = text.length();
-        if (textLen == 0) return Text.empty().copy();
+        if (textLen == 0) return Component.empty().copy();
         if (textLen == 1) {
-            return Text.literal(text).setStyle(
+            return Component.literal(text).setStyle(
                     baseStyle.withColor(TextColor.fromRgb(colors[0])));
         }
 
-        MutableText result = Text.empty();
+        MutableComponent result = Component.empty();
         for (int ci = 0; ci < textLen; ci++) {
             float progress = (float) ci / (textLen - 1);
             int rgb = interpolateMulti(colors, progress);
             Style charStyle = baseStyle.withColor(TextColor.fromRgb(rgb));
-            result.append(Text.literal(String.valueOf(text.charAt(ci))).setStyle(charStyle));
+            result.append(Component.literal(String.valueOf(text.charAt(ci))).setStyle(charStyle));
         }
         return result;
     }
@@ -878,7 +877,7 @@ public final class TabListManager {
         while (i < work.length()) {
             char c = work.charAt(i);
             if (c == '§' && i + 1 < work.length()) {
-                Formatting fmt = Formatting.byCode(work.charAt(i + 1));
+                ChatFormatting fmt = ChatFormatting.getByCode(work.charAt(i + 1));
                 if (fmt != null) { i += 2; continue; }
             }
             if (c == '#' && i + 6 < work.length()) {
@@ -899,7 +898,7 @@ public final class TabListManager {
         return switch (tag) {
             case "bold", "b"              -> current.withBold(true);
             case "italic", "i", "em"      -> current.withItalic(true);
-            case "underlined", "u"        -> current.withUnderline(true);
+            case "underlined", "u"        -> current.withUnderlined(true);
             case "strikethrough", "st"    -> current.withStrikethrough(true);
             case "obfuscated", "obf"      -> current.withObfuscated(true);
             default                       -> null;
@@ -913,7 +912,7 @@ public final class TabListManager {
         return switch (tag) {
             case "bold", "b"              -> current.withBold(false);
             case "italic", "i", "em"      -> current.withItalic(false);
-            case "underlined", "u"        -> current.withUnderline(false);
+            case "underlined", "u"        -> current.withUnderlined(false);
             case "strikethrough", "st"    -> current.withStrikethrough(false);
             case "obfuscated", "obf"      -> current.withObfuscated(false);
             case "reset"                  -> Style.EMPTY;
@@ -921,11 +920,11 @@ public final class TabListManager {
         };
     }
 
-    private static Style applyModifier(Style style, Formatting fmt) {
+    private static Style applyModifier(Style style, ChatFormatting fmt) {
         return switch (fmt) {
             case BOLD -> style.withBold(true);
             case ITALIC -> style.withItalic(true);
-            case UNDERLINE -> style.withUnderline(true);
+            case UNDERLINE -> style.withUnderlined(true);
             case STRIKETHROUGH -> style.withStrikethrough(true);
             case OBFUSCATED -> style.withObfuscated(true);
             default -> style;

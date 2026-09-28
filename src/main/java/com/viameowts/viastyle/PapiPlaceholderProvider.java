@@ -1,10 +1,9 @@
 package com.viameowts.viastyle;
 
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Reflection-based implementation of {@link PlaceholderProvider} that delegates to
@@ -31,23 +30,16 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
      */
     public static void registerCustomPlaceholders() {
         try {
-            Class<?> identifierClass  = Class.forName("net.minecraft.util.Identifier");
+            Class<?> identifierClass  = net.minecraft.resources.Identifier.class;
             Class<?> handlerClass     = Class.forName("eu.pb4.placeholders.api.PlaceholderHandler");
             Class<?> resultClass      = Class.forName("eu.pb4.placeholders.api.PlaceholderResult");
             Class<?> ctxClass         = Class.forName("eu.pb4.placeholders.api.PlaceholderContext");
             Class<?> placeholdersClass = Class.forName("eu.pb4.placeholders.api.Placeholders");
 
-            // net.minecraft.util.Identifier.of("viastyle:online")
-            Object id;
-            try {
-                id = identifierClass.getMethod("of", String.class).invoke(null, "viastyle:online");
-            } catch (NoSuchMethodException e) {
-                // Older MC versions use Identifier(String) constructor
-                id = identifierClass.getConstructor(String.class).newInstance("viastyle:online");
-            }
+            Object id = net.minecraft.resources.Identifier.fromNamespaceAndPath("viastyle", "online");
 
             // Locate PlaceholderResult.value(Text)
-            final Method valueMethod = resultClass.getMethod("value", Text.class);
+            final Method valueMethod = resultClass.getMethod("value", Component.class);
 
             // Locate PlaceholderContext.getPlayer() and .getServer()
             Method gpm = null;
@@ -72,10 +64,10 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
                         Object ctx = methodArgs[0];  // PlaceholderContext
 
                         // Resolve player (may return ServerPlayerEntity or null)
-                        ServerPlayerEntity player = null;
+                        ServerPlayer player = null;
                         if (getPlayerMethod != null) {
                             Object raw = getPlayerMethod.invoke(ctx);
-                            if (raw instanceof ServerPlayerEntity sp) player = sp;
+                            if (raw instanceof ServerPlayer sp) player = sp;
                         }
 
                         // Resolve server
@@ -87,9 +79,9 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
                         if (server == null) server = PlaceholderHelper.getServer();
 
                         int count = VanishHelper.countVisiblePlayers(server, player);
-                        return valueMethod.invoke(null, Text.literal(String.valueOf(count)));
+                        return valueMethod.invoke(null, Component.literal(String.valueOf(count)));
                     } catch (Throwable t) {
-                        return valueMethod.invoke(null, Text.literal("?"));
+                        return valueMethod.invoke(null, Component.literal("?"));
                     }
                 }
             );
@@ -108,9 +100,9 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
         Class<?> placeholdersClass = Class.forName("eu.pb4.placeholders.api.Placeholders");
         this.contextClass = Class.forName("eu.pb4.placeholders.api.PlaceholderContext");
         Class<?> minecraftServerClass = net.minecraft.server.MinecraftServer.class;
-        this.ofMethod = contextClass.getMethod("of", ServerPlayerEntity.class);
+        this.ofMethod = contextClass.getMethod("of", ServerPlayer.class);
         this.ofServerMethod = contextClass.getMethod("of", minecraftServerClass);
-        this.parseTextMethod = placeholdersClass.getMethod("parseText", Text.class, contextClass);
+        this.parseTextMethod = placeholdersClass.getMethod("parseText", Component.class, contextClass);
 
         // TextParserUtils — resolves all Simplified Text Format tags
         Method fmt = null;
@@ -131,10 +123,10 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
 
     /** Resolves {@code %namespace:key%} placeholders in an already-parsed Text. */
     @Override
-    public Text parse(Text text, ServerPlayerEntity player) {
+    public Component parse(Component text, ServerPlayer player) {
         try {
             Object ctx = ofMethod.invoke(null, player);
-            return (Text) parseTextMethod.invoke(null, text, ctx);
+            return (Component) parseTextMethod.invoke(null, text, ctx);
         } catch (Exception e) {
             return text;
         }
@@ -198,7 +190,7 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
      * If {@code player} is {@code null}, only format tags are applied.
      */
     @Override
-    public Text parseFormat(String input, ServerPlayerEntity player) {
+    public Component parseFormat(String input, ServerPlayer player) {
         try {
             input = normalizePercentAliasSyntax(input);
 
@@ -234,30 +226,30 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
 
             if (formatTextMethod == null) {
                 // PAPI build without TextParserUtils — legacy fallback
-                Text fallback = TabListManager.parseLegacyAndHex(input);
+                Component fallback = TabListManager.parseLegacyAndHex(input);
                 if (ctx != null) {
-                    return (Text) parseTextMethod.invoke(null, fallback, ctx);
+                    return (Component) parseTextMethod.invoke(null, fallback, ctx);
                 }
                 return fallback;
             }
 
             if (!hasGradient) {
                 // ── Pipeline A (no gradient) ─────────────────────────────────────
-                Text formatted = (Text) formatTextMethod.invoke(null, converted);
+                Component formatted = (Component) formatTextMethod.invoke(null, converted);
                 if (ctx != null) {
-                    return (Text) parseTextMethod.invoke(null, formatted, ctx);
+                    return (Component) parseTextMethod.invoke(null, formatted, ctx);
                 }
                 return formatted;
             } else {
                 // ── Pipeline B (gradient present) ────────────────────────────────
                 if (ctx != null) {
-                    Text asLiteral = Text.literal(converted);
-                    Text resolved = (Text) parseTextMethod.invoke(null, asLiteral, ctx);
+                    Component asLiteral = Component.literal(converted);
+                    Component resolved = (Component) parseTextMethod.invoke(null, asLiteral, ctx);
                     // getString() collapses the text tree to a flat string;
                     // <tags> passed as literals survive intact.
                     converted = resolved.getString();
                 }
-                return (Text) formatTextMethod.invoke(null, converted);
+                return (Component) formatTextMethod.invoke(null, converted);
             }
         } catch (Exception e) {
             return TabListManager.parseLegacyAndHex(input);

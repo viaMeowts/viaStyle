@@ -9,69 +9,68 @@ import com.viameowts.viastyle.Lang;
 import com.viameowts.viastyle.LuckPermsHelper;
 import com.viameowts.viastyle.ViaStyleConfig;
 import com.viameowts.viastyle.viaStyle;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.command.argument.EntityArgumentType;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-
 import java.util.UUID;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.server.level.ServerPlayer;
 
 public class AfkCommand {
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher,
-                                CommandRegistryAccess registryAccess,
-                                CommandManager.RegistrationEnvironment environment) {
-        dispatcher.register(CommandManager.literal("afk")
-            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.afk"))
-            .then(CommandManager.literal("bypass")
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
+                                CommandBuildContext registryAccess,
+                                Commands.CommandSelection environment) {
+        dispatcher.register(Commands.literal("afk")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.afk", 0))
+            .then(Commands.literal("bypass")
                 .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.afk.bypass.manage", 2))
-                .then(CommandManager.literal("list")
+                .then(Commands.literal("list")
                     .executes(AfkCommand::bypassList))
-                .then(CommandManager.argument("player", EntityArgumentType.player())
+                .then(Commands.argument("player", EntityArgument.player())
                     .executes(AfkCommand::bypassToggle)))
-            .then(CommandManager.argument("player", EntityArgumentType.player())
+            .then(Commands.argument("player", EntityArgument.player())
                 .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.afk.others", 2))
                 .executes(AfkCommand::toggleOther))
             .executes(AfkCommand::toggleSelf));
     }
 
-    private static int toggleSelf(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerCommandSource source = context.getSource();
-        ServerPlayerEntity player = source.getPlayerOrThrow();
+    private static int toggleSelf(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
+        ServerPlayer player = source.getPlayerOrException();
         boolean nowAfk = AfkManager.toggleAfk(player);
         ViaStyleConfig cfg = viaStyle.CONFIG;
         TextColor color = parseHexColor(nowAfk ? cfg.afkEnabledColor : cfg.afkDisabledColor);
-        source.sendFeedback(() -> Lang.getColored(nowAfk ? "afk.self_enabled" : "afk.self_disabled", color), true);
+        source.sendSuccess(() -> Lang.getColored(nowAfk ? "afk.self_enabled" : "afk.self_disabled", color), true);
         return 1;
     }
 
-    private static int toggleOther(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity target = EntityArgumentType.getPlayer(context, "player");
+    private static int toggleOther(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer target = EntityArgument.getPlayer(context, "player");
         boolean nowAfk = AfkManager.toggleAfk(target);
-        ServerCommandSource source = context.getSource();
+        CommandSourceStack source = context.getSource();
         ViaStyleConfig cfg = viaStyle.CONFIG;
         TextColor color = parseHexColor(nowAfk ? cfg.afkEnabledColor : cfg.afkDisabledColor);
         TextColor nameColor = parseHexColor(nowAfk ? cfg.afkEnabledColor : cfg.afkDisabledColor);
-        Text msg = Lang.getColored(nowAfk ? "afk.other_set" : "afk.other_unset", color)
-                .append(Text.literal(target.getName().getString()).styled(s -> s.withColor(nameColor)));
-        source.sendFeedback(() -> msg, true);
+        Component msg = Lang.getColored(nowAfk ? "afk.other_set" : "afk.other_unset", color)
+                .append(Component.literal(target.getName().getString()).withStyle(s -> s.withColor(nameColor)));
+        source.sendSuccess(() -> msg, true);
         return 1;
     }
 
-    private static int bypassList(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int bypassList(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
         String exempt = viaStyle.CONFIG != null ? viaStyle.CONFIG.afkExemptPlayers : "";
         if (exempt == null || exempt.isBlank()) {
-            source.sendFeedback(() -> Text.literal("No exempt players configured.").formatted(Formatting.GRAY), false);
+            source.sendSuccess(() -> Component.literal("No exempt players configured.").withStyle(ChatFormatting.GRAY), false);
             return 1;
         }
-        Text list = Text.literal("AFK exempt players: ").formatted(Formatting.YELLOW)
-                .append(Text.literal(exempt).formatted(Formatting.GRAY));
-        source.sendFeedback(() -> list, false);
+        Component list = Component.literal("AFK exempt players: ").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal(exempt).withStyle(ChatFormatting.GRAY));
+        source.sendSuccess(() -> list, false);
         return 1;
     }
 
@@ -85,12 +84,12 @@ public class AfkCommand {
         }
     }
 
-    private static int bypassToggle(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity target = EntityArgumentType.getPlayer(context, "player");
-        ServerCommandSource source = context.getSource();
+    private static int bypassToggle(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer target = EntityArgument.getPlayer(context, "player");
+        CommandSourceStack source = context.getSource();
         ViaStyleConfig cfg = viaStyle.CONFIG;
 
-        UUID targetUuid = target.getUuid();
+        UUID targetUuid = target.getUUID();
         String uuidStr = targetUuid.toString();
         String exempt = cfg.afkExemptPlayers != null ? cfg.afkExemptPlayers : "";
 
@@ -99,16 +98,16 @@ public class AfkCommand {
         if (exempt.contains(uuidStr)) {
             cfg.afkExemptPlayers = exempt.replace(uuidStr, "").replace(",,", ",")
                     .replaceAll("^,|,$", "").trim();
-            source.sendFeedback(() -> Text.literal("Removed ")
-                    .append(Text.literal(target.getName().getString()).styled(s -> s.withColor(removedColor)))
-                    .append(Text.literal(" from AFK exempt list.").formatted(Formatting.GREEN)), true);
+            source.sendSuccess(() -> Component.literal("Removed ")
+                    .append(Component.literal(target.getName().getString()).withStyle(s -> s.withColor(removedColor)))
+                    .append(Component.literal(" from AFK exempt list.").withStyle(ChatFormatting.GREEN)), true);
         } else {
             if (!exempt.isEmpty() && !exempt.endsWith(",")) exempt += ",";
             exempt += uuidStr;
             cfg.afkExemptPlayers = exempt;
-            source.sendFeedback(() -> Text.literal("Added ")
-                    .append(Text.literal(target.getName().getString()).styled(s -> s.withColor(addedColor)))
-                    .append(Text.literal(" to AFK exempt list.").formatted(Formatting.GREEN)), true);
+            source.sendSuccess(() -> Component.literal("Added ")
+                    .append(Component.literal(target.getName().getString()).withStyle(s -> s.withColor(addedColor)))
+                    .append(Component.literal(" to AFK exempt list.").withStyle(ChatFormatting.GREEN)), true);
         }
         cfg.save();
         return 1;

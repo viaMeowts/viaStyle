@@ -1,13 +1,12 @@
 package com.viameowts.viastyle;
 
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
 
 public final class ChatMiniMessageParser {
 
@@ -16,31 +15,31 @@ public final class ChatMiniMessageParser {
                     "black|dark_blue|dark_green|dark_aqua|dark_red|dark_purple|gold|gray|dark_gray|blue|green|aqua|red|light_purple|yellow|white)>",
             Pattern.CASE_INSENSITIVE);
 
-    private static final Map<String, Formatting> NAMED_COLORS = Map.ofEntries(
-            Map.entry("black", Formatting.BLACK),
-            Map.entry("dark_blue", Formatting.DARK_BLUE),
-            Map.entry("dark_green", Formatting.DARK_GREEN),
-            Map.entry("dark_aqua", Formatting.DARK_AQUA),
-            Map.entry("dark_red", Formatting.DARK_RED),
-            Map.entry("dark_purple", Formatting.DARK_PURPLE),
-            Map.entry("gold", Formatting.GOLD),
-            Map.entry("gray", Formatting.GRAY),
-            Map.entry("dark_gray", Formatting.DARK_GRAY),
-            Map.entry("blue", Formatting.BLUE),
-            Map.entry("green", Formatting.GREEN),
-            Map.entry("aqua", Formatting.AQUA),
-            Map.entry("red", Formatting.RED),
-            Map.entry("light_purple", Formatting.LIGHT_PURPLE),
-            Map.entry("yellow", Formatting.YELLOW),
-            Map.entry("white", Formatting.WHITE)
+    private static final Map<String, ChatFormatting> NAMED_COLORS = Map.ofEntries(
+            Map.entry("black", ChatFormatting.BLACK),
+            Map.entry("dark_blue", ChatFormatting.DARK_BLUE),
+            Map.entry("dark_green", ChatFormatting.DARK_GREEN),
+            Map.entry("dark_aqua", ChatFormatting.DARK_AQUA),
+            Map.entry("dark_red", ChatFormatting.DARK_RED),
+            Map.entry("dark_purple", ChatFormatting.DARK_PURPLE),
+            Map.entry("gold", ChatFormatting.GOLD),
+            Map.entry("gray", ChatFormatting.GRAY),
+            Map.entry("dark_gray", ChatFormatting.DARK_GRAY),
+            Map.entry("blue", ChatFormatting.BLUE),
+            Map.entry("green", ChatFormatting.GREEN),
+            Map.entry("aqua", ChatFormatting.AQUA),
+            Map.entry("red", ChatFormatting.RED),
+            Map.entry("light_purple", ChatFormatting.LIGHT_PURPLE),
+            Map.entry("yellow", ChatFormatting.YELLOW),
+            Map.entry("white", ChatFormatting.WHITE)
     );
 
     private ChatMiniMessageParser() {}
 
-    public static Text parse(String input, TextColor defaultColor) {
-        if (input == null || input.isEmpty()) return Text.empty();
+    public static Component parse(String input, TextColor defaultColor) {
+        if (input == null || input.isEmpty()) return Component.empty();
 
-        MutableText result = Text.empty();
+        MutableComponent result = Component.empty();
         TextColor currentColor = defaultColor;
         boolean bold = false, italic = false, underlined = false, strikethrough = false, obfuscated = false;
 
@@ -107,9 +106,9 @@ public final class ChatMiniMessageParser {
                     case "strikethrough", "st" -> strikethrough = true;
                     case "obfuscated", "o" -> obfuscated = true;
                     default -> {
-                        Formatting named = NAMED_COLORS.get(tagName);
-                        if (named != null && named.getColorValue() != null) {
-                            currentColor = TextColor.fromFormatting(named);
+                        ChatFormatting named = NAMED_COLORS.get(tagName);
+                        if (named != null && TextColor.fromLegacyFormat(named) != null) {
+                            currentColor = TextColor.fromLegacyFormat(named);
                         }
                     }
                 }
@@ -131,26 +130,26 @@ public final class ChatMiniMessageParser {
         return TAG_PATTERN.matcher(input).find();
     }
 
-    private static MutableText styledLiteral(String text, TextColor color,
+    private static MutableComponent styledLiteral(String text, TextColor color,
                                              boolean bold, boolean italic, boolean underlined,
                                              boolean strikethrough, boolean obfuscated) {
-        return Text.literal(text).styled(s -> {
+        return Component.literal(text).withStyle(s -> {
             s = s.withColor(color);
             if (bold) s = s.withBold(true);
             if (italic) s = s.withItalic(true);
-            if (underlined) s = s.withUnderline(true);
+            if (underlined) s = s.withUnderlined(true);
             if (strikethrough) s = s.withStrikethrough(true);
             if (obfuscated) s = s.withObfuscated(true);
             return s;
         });
     }
 
-    private static MutableText applyGradient(String text, String gradientSpec,
+    private static MutableComponent applyGradient(String text, String gradientSpec,
                                              boolean bold, boolean italic, boolean underlined,
                                              boolean strikethrough, boolean obfuscated) {
         String[] parts = gradientSpec.split(":");
         if (parts.length < 2) {
-            return Text.literal(text);
+            return Component.literal(text);
         }
 
         int[] colors = new int[parts.length];
@@ -158,23 +157,23 @@ public final class ChatMiniMessageParser {
             String piece = parts[i].trim();
             if (!piece.startsWith("#")) piece = "#" + piece;
             TextColor tc = parseHex(piece);
-            if (tc == null) return Text.literal(text);
-            colors[i] = tc.getRgb();
+            if (tc == null) return Component.literal(text);
+            colors[i] = tc.getValue();
         }
 
         int len = text.length();
-        if (len == 0) return Text.empty();
+        if (len == 0) return Component.empty();
 
-        MutableText out = Text.empty();
+        MutableComponent out = Component.empty();
         for (int i = 0; i < len; i++) {
             float progress = len == 1 ? 0f : (float) i / (len - 1);
             int rgb = interpolateMulti(colors, progress);
             final int c = rgb;
-            out.append(Text.literal(String.valueOf(text.charAt(i))).styled(s -> {
+            out.append(Component.literal(String.valueOf(text.charAt(i))).withStyle(s -> {
                 s = s.withColor(TextColor.fromRgb(c));
                 if (bold) s = s.withBold(true);
                 if (italic) s = s.withItalic(true);
-                if (underlined) s = s.withUnderline(true);
+                if (underlined) s = s.withUnderlined(true);
                 if (strikethrough) s = s.withStrikethrough(true);
                 if (obfuscated) s = s.withObfuscated(true);
                 return s;

@@ -2,7 +2,7 @@ package com.viameowts.viastyle;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Public façade for optional Vanish (DrexHD/Vanish, mod id {@code melius-vanish}) integration.
@@ -47,7 +47,7 @@ public final class VanishHelper {
      * Returns {@code true} if the player is currently vanished.
      * Always returns {@code false} when Vanish is not installed.
      */
-    public static boolean isVanished(ServerPlayerEntity player) {
+    public static boolean isVanished(ServerPlayer player) {
         if (!available || player == null) return false;
         return VanishCompat.isVanished(player);
     }
@@ -60,7 +60,7 @@ public final class VanishHelper {
      * Returns {@code true} if {@code observer} can see {@code actor}.
      * Fails open (returns {@code true}) when Vanish is not installed.
      */
-    public static boolean canSeePlayer(ServerPlayerEntity actor, ServerPlayerEntity observer) {
+    public static boolean canSeePlayer(ServerPlayer actor, ServerPlayer observer) {
         if (!available) return true;
         if (actor == null || observer == null) return true;
         return VanishCompat.canSeePlayer(actor, observer);
@@ -74,9 +74,9 @@ public final class VanishHelper {
      * Returns the number of players visible to {@code viewer}.
      * Falls back to the raw player count when Vanish is not installed.
      */
-    public static int countVisiblePlayers(MinecraftServer server, ServerPlayerEntity viewer) {
+    public static int countVisiblePlayers(MinecraftServer server, ServerPlayer viewer) {
         if (server == null) return 0;
-        if (!available) return server.getPlayerManager().getPlayerList().size();
+        if (!available) return server.getPlayerList().getPlayers().size();
         return VanishCompat.countVisiblePlayers(server, viewer);
     }
 }

@@ -4,8 +4,7 @@ import me.drex.vanish.api.VanishAPI;
 import me.drex.vanish.api.VanishEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-
+import net.minecraft.server.level.ServerPlayer;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,13 +48,13 @@ final class VanishCompat {
     static void registerEvents() {
         // ── Vanish state change: nametag + tab refresh ─────────────────────
         VanishEvents.VANISH_EVENT.register((player, vanishing) -> {
-            MinecraftServer server = player.getEntityWorld().getServer();
+            MinecraftServer server = player.level().getServer();
             if (server == null) return;
 
             // Update local cache synchronously so countVisiblePlayers() already
             // returns the correct value when TabListManager reads it on the next tick.
-            if (vanishing) vanishedSet.add(player.getUuid());
-            else           vanishedSet.remove(player.getUuid());
+            if (vanishing) vanishedSet.add(player.getUUID());
+            else           vanishedSet.remove(player.getUUID());
 
             // Everything that touches entities / scoreboards must run on the
             // server thread (C2ME enforces this).
@@ -81,20 +80,20 @@ final class VanishCompat {
         // for players whose vanish state was persisted from a previous session.
         // So we also check VanishAPI.isVanished() after every join.
         ServerPlayConnectionEvents.JOIN.register((handler, sender, srv) -> {
-            ServerPlayerEntity joining = handler.player;
+            ServerPlayer joining = handler.player;
             // Determine initial vanish state on server thread (can't trust calling thread)
             srv.execute(() -> {
                 if (VanishAPI.isVanished(joining)) {
-                    vanishedSet.add(joining.getUuid());
+                    vanishedSet.add(joining.getUUID());
                 } else {
-                    vanishedSet.remove(joining.getUuid());
+                    vanishedSet.remove(joining.getUUID());
                 }
                 TabListManager.updateAll(srv);
             });
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, srv) -> {
             // Remove immediately so the next onTick() sees the correct count.
-            vanishedSet.remove(handler.player.getUuid());
+            vanishedSet.remove(handler.player.getUUID());
         });
 
         // ── Replace Vanish's fake "left the game" message on /vanish ───────
@@ -112,7 +111,7 @@ final class VanishCompat {
             // If no leave format is configured, return empty — Vanish will
             // broadcast Text.empty() which our PlayerManagerBroadcastMixin
             // cancels so that no blank line appears.
-            return net.minecraft.text.Text.empty();
+            return net.minecraft.network.chat.Component.empty();
         });
 
         // ── Replace Vanish's fake "joined the game" message on /unvanish ───
@@ -123,7 +122,7 @@ final class VanishCompat {
                     return viaStyleServer.buildJoinLeaveMessage(fmt, player);
                 }
             }
-            return net.minecraft.text.Text.empty();
+            return net.minecraft.network.chat.Component.empty();
         });
     }
 
@@ -131,7 +130,7 @@ final class VanishCompat {
     //  API wrappers (direct calls — no reflection)
     // ═══════════════════════════════════════════════════════════════════════
 
-    static boolean isVanished(ServerPlayerEntity player) {
+    static boolean isVanished(ServerPlayer player) {
         return VanishAPI.isVanished(player);
     }
 
@@ -142,23 +141,23 @@ final class VanishCompat {
      * who performed the action / whose action is observed) and the second is
      * <em>viewer</em> (the player who is watching).</p>
      */
-    static boolean canSeePlayer(ServerPlayerEntity actor, ServerPlayerEntity observer) {
+    static boolean canSeePlayer(ServerPlayer actor, ServerPlayer observer) {
         return VanishAPI.canSeePlayer(actor, observer);
     }
 
-    static int countVisiblePlayers(MinecraftServer server, ServerPlayerEntity viewer) {
+    static int countVisiblePlayers(MinecraftServer server, ServerPlayer viewer) {
         // Per-viewer-aware count:
         //  • If viewer is non-null  → include player p only if viewer can see them
         //    (VanishAPI.canSeePlayer(actor=p, observer=viewer) respects vanish permissions).
         //  • If viewer is null (server context, no player) → exclude all vanished players.
         int count = 0;
-        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (viewer != null) {
                 // Returns true if viewer can see p (admins see vanished, normal players don't).
                 if (VanishAPI.canSeePlayer(p, viewer)) count++;
             } else {
                 // No viewer context — conservative: hide all vanished players.
-                if (!vanishedSet.contains(p.getUuid()) && !VanishAPI.isVanished(p)) count++;
+                if (!vanishedSet.contains(p.getUUID()) && !VanishAPI.isVanished(p)) count++;
             }
         }
         return count;

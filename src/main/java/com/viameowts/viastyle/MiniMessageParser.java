@@ -1,9 +1,9 @@
 package com.viameowts.viastyle;
 
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
 
 /**
  * Lightweight MiniMessage-like parser for nick coloring.
@@ -26,9 +26,9 @@ public final class MiniMessageParser {
      *
      * @param name      the raw player name
      * @param colorSpec the spec (hex, gradient, or named colour)
-     * @return styled {@link Text}, or {@code null} if the spec is invalid
+     * @return styled {@link Component}, or {@code null} if the spec is invalid
      */
-    public static MutableText colorize(String name, String colorSpec) {
+    public static MutableComponent colorize(String name, String colorSpec) {
         if (name == null || name.isEmpty() || colorSpec == null || colorSpec.isEmpty()) {
             return null;
         }
@@ -44,17 +44,17 @@ public final class MiniMessageParser {
         if (spec.startsWith("#") && spec.length() == 7) {
             TextColor color = parseHex(spec);
             if (color != null) {
-                return Text.literal(name).styled(s -> s.withColor(color));
+                return Component.literal(name).withStyle(s -> s.withColor(color));
             }
             return null;
         }
 
         // ── Named Minecraft colour ─────────────────────────────────────────
         try {
-            Formatting fmt = Formatting.valueOf(spec.toUpperCase());
-            if (!fmt.isModifier() && fmt.getColorValue() != null) {
-                TextColor tc = TextColor.fromFormatting(fmt);
-                return Text.literal(name).styled(s -> s.withColor(tc));
+            ChatFormatting fmt = ChatFormatting.valueOf(spec.toUpperCase());
+            if (TextColor.fromLegacyFormat(fmt) != null) {
+                TextColor tc = TextColor.fromLegacyFormat(fmt);
+                return Component.literal(name).withStyle(s -> s.withColor(tc));
             }
         } catch (IllegalArgumentException ignored) {}
 
@@ -79,9 +79,9 @@ public final class MiniMessageParser {
             return parseHex(spec);
         }
         try {
-            Formatting fmt = Formatting.valueOf(spec.toUpperCase());
-            if (!fmt.isModifier() && fmt.getColorValue() != null) {
-                return TextColor.fromFormatting(fmt);
+            ChatFormatting fmt = ChatFormatting.valueOf(spec.toUpperCase());
+            if (TextColor.fromLegacyFormat(fmt) != null) {
+                return TextColor.fromLegacyFormat(fmt);
             }
         } catch (IllegalArgumentException ignored) {}
         return null;
@@ -109,9 +109,9 @@ public final class MiniMessageParser {
                 if (!p.startsWith("#")) p = "#" + p;
                 TextColor tc = parseHex(p);
                 if (tc == null) continue;
-                totalR += (tc.getRgb() >> 16) & 0xFF;
-                totalG += (tc.getRgb() >> 8) & 0xFF;
-                totalB += tc.getRgb() & 0xFF;
+                totalR += (tc.getValue() >> 16) & 0xFF;
+                totalG += (tc.getValue() >> 8) & 0xFF;
+                totalB += tc.getValue() & 0xFF;
                 count++;
             }
             if (count == 0) return null;
@@ -129,7 +129,7 @@ public final class MiniMessageParser {
      * Parses a gradient spec like {@code #ff0000:#00ff00} or
      * {@code #ff0000:#ffff00:#00ff00} into a per-character gradient Text.
      */
-    private static MutableText parseGradient(String name, String stopsStr) {
+    private static MutableComponent parseGradient(String name, String stopsStr) {
         String[] parts = stopsStr.split(":");
         if (parts.length < 2) return null;
 
@@ -139,22 +139,22 @@ public final class MiniMessageParser {
             if (!p.startsWith("#")) p = "#" + p;
             TextColor tc = parseHex(p);
             if (tc == null) return null;
-            colors[i] = tc.getRgb();
+            colors[i] = tc.getValue();
         }
 
         int len = name.length();
-        if (len == 0) return Text.empty();
+        if (len == 0) return Component.empty();
         if (len == 1) {
-            return Text.literal(name).styled(s -> s.withColor(TextColor.fromRgb(colors[0])));
+            return Component.literal(name).withStyle(s -> s.withColor(TextColor.fromRgb(colors[0])));
         }
 
-        MutableText result = Text.empty();
+        MutableComponent result = Component.empty();
         for (int i = 0; i < len; i++) {
             float progress = (float) i / (len - 1);
             int rgb = interpolateMulti(colors, progress);
             final int c = rgb;
-            result.append(Text.literal(String.valueOf(name.charAt(i)))
-                    .styled(s -> s.withColor(TextColor.fromRgb(c))));
+            result.append(Component.literal(String.valueOf(name.charAt(i)))
+                    .withStyle(s -> s.withColor(TextColor.fromRgb(c))));
         }
         return result;
     }

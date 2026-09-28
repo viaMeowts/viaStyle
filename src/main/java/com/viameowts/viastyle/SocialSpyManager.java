@@ -77,12 +77,14 @@ public final class SocialSpyManager {
         Set<Channel> set = spies.computeIfAbsent(uuid, k -> EnumSet.noneOf(Channel.class));
         set.addAll(EnumSet.allOf(Channel.class));
         save();
+        com.viameowts.viastyle.network.Profiles.changed(uuid, com.viameowts.viastyle.network.Profiles.SPY);
     }
 
     /** Disables spy on all channels. */
     public static void disableAll(UUID uuid) {
         spies.remove(uuid);
         save();
+        com.viameowts.viastyle.network.Profiles.changed(uuid, com.viameowts.viastyle.network.Profiles.SPY);
     }
 
     /** Toggles a specific channel. Returns true if now ON. */
@@ -98,6 +100,7 @@ public final class SocialSpyManager {
             nowOn = true;
         }
         save();
+        com.viameowts.viastyle.network.Profiles.changed(uuid, com.viameowts.viastyle.network.Profiles.SPY);
         return nowOn;
     }
 
@@ -112,6 +115,20 @@ public final class SocialSpyManager {
                 set.remove(channel);
                 if (set.isEmpty()) spies.remove(uuid);
             }
+        }
+        save();
+        com.viameowts.viastyle.network.Profiles.changed(uuid, com.viameowts.viastyle.network.Profiles.SPY);
+    }
+
+    /** Replaces a player's spy channels (network profile sync). */
+    public static void replace(UUID uuid, Set<Channel> channels) {
+        if (channels == null || channels.isEmpty()) {
+            if (spies.remove(uuid) == null) return;
+        } else {
+            Set<Channel> set = EnumSet.noneOf(Channel.class);
+            set.addAll(channels);
+            if (set.equals(spies.get(uuid))) return;
+            spies.put(uuid, set);
         }
         save();
     }

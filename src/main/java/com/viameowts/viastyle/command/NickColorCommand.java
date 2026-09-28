@@ -4,16 +4,14 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.viameowts.viastyle.*;
-import com.viameowts.viastyle.LuckPermsHelper;
-import net.minecraft.command.CommandRegistryAccess;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
+import net.minecraft.server.level.ServerPlayer;
 import java.util.Locale;
 
 /**
@@ -29,19 +27,19 @@ import java.util.Locale;
  */
 public class NickColorCommand {
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher,
-                                CommandRegistryAccess registryAccess,
-                                CommandManager.RegistrationEnvironment environment) {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
+                                CommandBuildContext registryAccess,
+                                Commands.CommandSelection environment) {
 
-        dispatcher.register(CommandManager.literal("nickcolor")
+        dispatcher.register(Commands.literal("nickcolor")
                 // /nickcolor set <player> <spec>
-                .then(CommandManager.literal("set")
+                .then(Commands.literal("set")
                         .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.command.nickcolor", 2))
-                        .then(CommandManager.argument("player", StringArgumentType.word())
+                        .then(Commands.argument("player", StringArgumentType.word())
                                 .suggests((ctx, b) -> {
                                                                         String remaining = b.getRemainingLowerCase();
-                                    for (ServerPlayerEntity p : ctx.getSource().getServer()
-                                            .getPlayerManager().getPlayerList()) {
+                                    for (ServerPlayer p : ctx.getSource().getServer()
+                                            .getPlayerList().getPlayers()) {
                                                                                 String name = p.getName().getString();
                                                                                 if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
                                                                                         b.suggest(name);
@@ -49,16 +47,16 @@ public class NickColorCommand {
                                     }
                                     return b.buildFuture();
                                 })
-                                .then(CommandManager.argument("spec", StringArgumentType.greedyString())
+                                .then(Commands.argument("spec", StringArgumentType.greedyString())
                                         .executes(NickColorCommand::setColor))))
                 // /nickcolor remove <player>
-                .then(CommandManager.literal("remove")
+                .then(Commands.literal("remove")
                         .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.command.nickcolor", 2))
-                        .then(CommandManager.argument("player", StringArgumentType.word())
+                        .then(Commands.argument("player", StringArgumentType.word())
                                 .suggests((ctx, b) -> {
                                                                         String remaining = b.getRemainingLowerCase();
-                                    for (ServerPlayerEntity p : ctx.getSource().getServer()
-                                            .getPlayerManager().getPlayerList()) {
+                                    for (ServerPlayer p : ctx.getSource().getServer()
+                                            .getPlayerList().getPlayers()) {
                                                                                 String name = p.getName().getString();
                                                                                 if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
                                                                                         b.suggest(name);
@@ -68,85 +66,85 @@ public class NickColorCommand {
                                 })
                                 .executes(NickColorCommand::removeColor)))
                 // /nickcolor reload
-                .then(CommandManager.literal("reload")
+                .then(Commands.literal("reload")
                         .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.command.nickcolor", 2))
                         .executes(NickColorCommand::reload))
                 // /nickcolor preview <spec>
-                .then(CommandManager.literal("preview")
+                .then(Commands.literal("preview")
                         .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.nickcolor.preview"))
-                        .then(CommandManager.argument("spec", StringArgumentType.greedyString())
+                        .then(Commands.argument("spec", StringArgumentType.greedyString())
                                 .executes(NickColorCommand::preview)))
         );
     }
 
     // ── /nickcolor set ────────────────────────────────────────────────────
 
-    private static int setColor(CommandContext<ServerCommandSource> ctx) {
+    private static int setColor(CommandContext<CommandSourceStack> ctx) {
         String targetName = StringArgumentType.getString(ctx, "player");
         String spec       = StringArgumentType.getString(ctx, "spec");
 
-        ServerPlayerEntity target = ctx.getSource().getServer()
-                .getPlayerManager().getPlayer(targetName);
+        ServerPlayer target = ctx.getSource().getServer()
+                .getPlayerList().getPlayerByName(targetName);
         if (target == null) {
-            ctx.getSource().sendError(Lang.get("error.player_not_found"));
+            ctx.getSource().sendFailure(Lang.get("error.player_not_found"));
             return 0;
         }
 
         // Validate spec
-        MutableText preview = MiniMessageParser.colorize(target.getName().getString(), spec);
+        MutableComponent preview = MiniMessageParser.colorize(target.getName().getString(), spec);
         if (preview == null) {
-            ctx.getSource().sendError(Lang.get("nickcolor.invalid_spec"));
+            ctx.getSource().sendFailure(Lang.get("nickcolor.invalid_spec"));
             return 0;
         }
 
-        NickColorManager.setOverride(target.getUuid(), spec);
+        NickColorManager.setOverride(target.getUUID(), spec);
         TabListManager.updatePlayer(target);
         NametagManager.updatePlayer(target);
 
-        ctx.getSource().sendFeedback(
-                () -> Text.empty()
+        ctx.getSource().sendSuccess(
+                () -> Component.empty()
                         .append(Lang.get("nickcolor.set"))
                         .append(preview)
-                        .append(Text.literal(" => ").formatted(Formatting.GRAY))
-                        .append(Text.literal(spec).formatted(Formatting.AQUA)),
+                        .append(Component.literal(" => ").withStyle(ChatFormatting.GRAY))
+                        .append(Component.literal(spec).withStyle(ChatFormatting.AQUA)),
                 true);
         return 1;
     }
 
     // ── /nickcolor remove ─────────────────────────────────────────────────
 
-    private static int removeColor(CommandContext<ServerCommandSource> ctx) {
+    private static int removeColor(CommandContext<CommandSourceStack> ctx) {
         String targetName = StringArgumentType.getString(ctx, "player");
 
-        ServerPlayerEntity target = ctx.getSource().getServer()
-                .getPlayerManager().getPlayer(targetName);
+        ServerPlayer target = ctx.getSource().getServer()
+                .getPlayerList().getPlayerByName(targetName);
         if (target == null) {
-            ctx.getSource().sendError(Lang.get("error.player_not_found"));
+            ctx.getSource().sendFailure(Lang.get("error.player_not_found"));
             return 0;
         }
 
-        NickColorManager.removeOverride(target.getUuid());
-        NickColorManager.invalidate(target.getUuid());
+        NickColorManager.removeOverride(target.getUUID());
+        NickColorManager.invalidate(target.getUUID());
         TabListManager.updatePlayer(target);
         NametagManager.updatePlayer(target);
 
-        ctx.getSource().sendFeedback(
+        ctx.getSource().sendSuccess(
                 () -> Lang.getMutable("nickcolor.removed")
-                        .append(Text.literal(targetName).formatted(Formatting.WHITE)),
+                        .append(Component.literal(targetName).withStyle(ChatFormatting.WHITE)),
                 true);
         return 1;
     }
 
     // ── /nickcolor reload ─────────────────────────────────────────────────
 
-    private static int reload(CommandContext<ServerCommandSource> ctx) {
+    private static int reload(CommandContext<CommandSourceStack> ctx) {
         NickColorManager.reload();
 
         MinecraftServer server = ctx.getSource().getServer();
         TabListManager.updateAll(server);
         NametagManager.updateAll(server);
 
-        ctx.getSource().sendFeedback(
+        ctx.getSource().sendSuccess(
                 () -> Lang.get("nickcolor.reloaded"),
                 true);
         return 1;
@@ -154,23 +152,23 @@ public class NickColorCommand {
 
     // ── /nickcolor preview ────────────────────────────────────────────────
 
-    private static int preview(CommandContext<ServerCommandSource> ctx) {
+    private static int preview(CommandContext<CommandSourceStack> ctx) {
         String spec = StringArgumentType.getString(ctx, "spec");
 
         String name = "Player";
-        if (ctx.getSource().getEntity() instanceof ServerPlayerEntity p) {
+        if (ctx.getSource().getEntity() instanceof ServerPlayer p) {
             name = p.getName().getString();
         }
 
-        MutableText preview = MiniMessageParser.colorize(name, spec);
+        MutableComponent preview = MiniMessageParser.colorize(name, spec);
         if (preview == null) {
-            ctx.getSource().sendError(Lang.get("nickcolor.invalid_spec"));
+            ctx.getSource().sendFailure(Lang.get("nickcolor.invalid_spec"));
             return 0;
         }
 
-        ctx.getSource().sendFeedback(
-                () -> Text.empty()
-                        .append(Text.literal("Preview: ").formatted(Formatting.GRAY))
+        ctx.getSource().sendSuccess(
+                () -> Component.empty()
+                        .append(Component.literal("Preview: ").withStyle(ChatFormatting.GRAY))
                         .append(preview),
                 false);
         return 1;

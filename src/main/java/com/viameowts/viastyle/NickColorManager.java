@@ -4,12 +4,11 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-
+import net.minecraft.server.level.ServerPlayer;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -141,17 +140,17 @@ public final class NickColorManager {
     }
 
     /**
-     * Returns a styled {@link Text} for the player's name, or {@code null}
+     * Returns a styled {@link Component} for the player's name, or {@code null}
      * if no nick colour is configured.
      */
-    public static MutableText getColoredName(ServerPlayerEntity player) {
+    public static MutableComponent getColoredName(ServerPlayer player) {
         if (!viaStyle.CONFIG.nickColorEnabled) return null;
 
-        if (AfkManager.isAfk(player.getUuid()) && viaStyle.CONFIG.afkNameColor != null && !viaStyle.CONFIG.afkNameColor.isBlank()) {
+        if (AfkManager.isAfk(player.getUUID()) && viaStyle.CONFIG.afkNameColor != null && !viaStyle.CONFIG.afkNameColor.isBlank()) {
             return MiniMessageParser.colorize(player.getName().getString(), viaStyle.CONFIG.afkNameColor);
         }
 
-        String spec = getColorSpec(player.getUuid());
+        String spec = getColorSpec(player.getUUID());
         if (spec == null) return null;
         return MiniMessageParser.colorize(player.getName().getString(), spec);
     }
@@ -163,8 +162,8 @@ public final class NickColorManager {
     public static TextColor getPrimaryColor(UUID uuid) {
         if (!viaStyle.CONFIG.nickColorEnabled) return null;
 
-        ServerPlayerEntity player = PlaceholderHelper.getServer() != null
-                ? PlaceholderHelper.getServer().getPlayerManager().getPlayer(uuid) : null;
+        ServerPlayer player = PlaceholderHelper.getServer() != null
+                ? PlaceholderHelper.getServer().getPlayerList().getPlayer(uuid) : null;
         if (player != null && AfkManager.isAfk(uuid) && viaStyle.CONFIG.afkNameColor != null && !viaStyle.CONFIG.afkNameColor.isBlank()) {
             TextColor afkColor = MiniMessageParser.primaryColor(viaStyle.CONFIG.afkNameColor);
             if (afkColor != null) return afkColor;
@@ -178,18 +177,25 @@ public final class NickColorManager {
      * Sets a manual colour override for a player (saved to file).
      */
     public static void setOverride(UUID uuid, String colorSpec) {
-        fileOverrides.put(uuid, colorSpec);
+        if (colorSpec.equals(fileOverrides.put(uuid, colorSpec))) return;
         cache.remove(uuid);
         saveFile();
+        com.viameowts.viastyle.network.Profiles.changed(uuid, com.viameowts.viastyle.network.Profiles.NICK_COLOR);
+    }
+
+    /** Manual colour override from file / network profile, or {@code null}. */
+    public static String getOverride(UUID uuid) {
+        return fileOverrides.get(uuid);
     }
 
     /**
      * Removes a manual colour override.
      */
     public static void removeOverride(UUID uuid) {
-        fileOverrides.remove(uuid);
+        if (fileOverrides.remove(uuid) == null) return;
         cache.remove(uuid);
         saveFile();
+        com.viameowts.viastyle.network.Profiles.changed(uuid, com.viameowts.viastyle.network.Profiles.NICK_COLOR);
     }
 
     /**
@@ -213,7 +219,7 @@ public final class NickColorManager {
      */
     public static void refreshAll(MinecraftServer server) {
         cache.clear();
-        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             // Re-resolve will happen lazily on next getColorSpec() call
             TabListManager.updatePlayer(p);
             NametagManager.updatePlayer(p);

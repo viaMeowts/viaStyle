@@ -7,33 +7,43 @@ import com.viameowts.viastyle.Lang;
 import com.viameowts.viastyle.LuckPermsHelper;
 import com.viameowts.viastyle.ViaStyleConfig;
 import com.viameowts.viastyle.viaStyle;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
+import com.viameowts.viastyle.ChatHandler;
+import com.viameowts.viastyle.VanishHelper;
+import com.viameowts.viastyle.network.ChatChannel;
+import com.viameowts.viastyle.network.Network;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class ChatModeCommand {
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher,
-                                CommandRegistryAccess registryAccess,
-                                CommandManager.RegistrationEnvironment environment) {
-        dispatcher.register(CommandManager.literal("viaStyle")
-            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.chatmode"))
-                .then(CommandManager.literal("local")
-                        .then(CommandManager.literal("!")
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
+                                CommandBuildContext registryAccess,
+                                Commands.CommandSelection environment) {
+        dispatcher.register(Commands.literal("viaStyle")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.chatmode", 0))
+                .then(Commands.literal("local")
+                        .then(Commands.literal("!")
                                 .executes(ChatModeCommand::setModeLocal)
                         )
                 )
-                .then(CommandManager.literal("global")
-                        .then(CommandManager.literal("!")
+                .then(Commands.literal("global")
+                        .then(Commands.literal("!")
                                 .executes(ChatModeCommand::setModeGlobal)
                         )
                 )
-                .then(CommandManager.literal("lang")
+                .then(Commands.literal("lang")
                     .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.lang"))
-                        .then(CommandManager.argument("language", StringArgumentType.word())
+                        .then(Commands.argument("language", StringArgumentType.word())
                                 .suggests((context, builder) -> {
                             String remaining = builder.getRemainingLowerCase();
                             if ("en".startsWith(remaining)) builder.suggest("en");
@@ -44,62 +54,141 @@ public class ChatModeCommand {
                         )
                         .executes(ChatModeCommand::showCurrentLanguage)
                 )
-                .then(CommandManager.literal("reload")
+                .then(Commands.literal("reload")
                         .requires(src -> LuckPermsHelper.checkPermission(src, "viastyle.command.reload", 2))
                         .executes(ChatModeCommand::reloadConfig)
                 )
                 .executes(ChatModeCommand::showCurrentMode)
         );
+
+        // /ch [channel]  (alias /channel)
+        var chNode = Commands.literal("ch")
+                .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.channel", 0))
+                .then(Commands.argument("channel", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            String remaining = builder.getRemainingLowerCase();
+                            boolean ru = "ru".equals(Lang.getCurrentLang());
+                            for (ChatChannel c : ChatChannel.values()) {
+                                if (c == ChatChannel.NETWORK && !Network.enabled()) continue;
+                                String name = ru ? Lang.get("channel.name." + c.id).getString() : c.id;
+                                if (name.startsWith(remaining)) builder.suggest(name);
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ChatModeCommand::setChannelArg))
+                .executes(ChatModeCommand::showCurrentMode)
+                .build();
+        dispatcher.getRoot().addChild(chNode);
+        dispatcher.getRoot().addChild(Commands.literal("channel").redirect(chNode).build());
+
+        dispatcher.register(Commands.literal("online")
+                .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.online", 0))
+                .executes(ChatModeCommand::showOnline));
     }
 
-    private static int setModeLocal(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-        if (!(source.getEntity() instanceof ServerPlayerEntity player)) {
-            source.sendError(Lang.get("error.player_only"));
+    // Legacy toggles: "/viaStyle local !" = the '!' trigger means local, so plain messages go
+    // server-wide; "/viaStyle global !" = '!' means global, plain messages stay local.
+    private static int setModeLocal(CommandContext<CommandSourceStack> context) {
+        return setChannel(context, ChatChannel.PLANET);
+    }
+
+    private static int setModeGlobal(CommandContext<CommandSourceStack> context) {
+        return setChannel(context, ChatChannel.LOCAL);
+    }
+
+    private static int setChannelArg(CommandContext<CommandSourceStack> context) {
+        ChatChannel channel = ChatChannel.parse(StringArgumentType.getString(context, "channel"));
+        if (channel == null) {
+            context.getSource().sendFailure(Lang.get("channel.unknown"));
             return 0;
         }
+        return setChannel(context, channel);
+    }
 
-        viaStyle.playerChatModePref.put(player.getUuid(), false);
-
-        source.sendFeedback(() -> Lang.get("command.set.prefix_local"), false);
-
+    private static int setChannel(CommandContext<CommandSourceStack> context, ChatChannel channel) {
+        CommandSourceStack source = context.getSource();
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Lang.get("error.player_only"));
+            return 0;
+        }
+        if (channel == ChatChannel.NETWORK && !Network.enabled()) {
+            source.sendFailure(Lang.get("channel.no_network"));
+            return 0;
+        }
+        if (channel == ChatChannel.STAFF && !ChatHandler.hasStaffPermission(player)) {
+            source.sendFailure(Lang.get("chat.staff_no_permission"));
+            return 0;
+        }
+        viaStyle.setDefaultChannel(player.getUUID(), channel);
+        Component feedback = Lang.getMutable("channel.set").append(channelName(channel));
+        source.sendSuccess(() -> feedback, false);
         return 1;
     }
 
-    private static int setModeGlobal(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-        if (!(source.getEntity() instanceof ServerPlayerEntity player)) {
-            source.sendError(Lang.get("error.player_only"));
+    private static int showCurrentMode(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Lang.get("error.player_only"));
             return 0;
         }
+        ChatChannel current = viaStyle.getDefaultChannel(player.getUUID());
+        MutableComponent feedback = Lang.getMutable("channel.current").append(channelName(current));
+        source.sendSuccess(() -> feedback, false);
 
-        viaStyle.playerChatModePref.put(player.getUuid(), true);
-
-        source.sendFeedback(() -> Lang.get("command.set.prefix_global"), false);
-
+        ViaStyleConfig cfg = viaStyle.CONFIG;
+        MutableComponent triggers = Lang.getMutable("channel.triggers");
+        boolean network = Network.enabled();
+        appendTrigger(triggers, cfg.globalTrigger, network ? ChatChannel.NETWORK : ChatChannel.PLANET);
+        if (network) appendTrigger(triggers, cfg.planetTrigger, ChatChannel.PLANET);
+        appendTrigger(triggers, cfg.localTrigger, ChatChannel.LOCAL);
+        if (ChatHandler.hasStaffPermission(player)) appendTrigger(triggers, cfg.staffTrigger, ChatChannel.STAFF);
+        source.sendSuccess(() -> triggers, false);
         return 1;
     }
 
-    private static int showCurrentMode(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-        if (!(source.getEntity() instanceof ServerPlayerEntity player)) {
-            source.sendError(Lang.get("error.player_only"));
-            return 0;
-        }
-        boolean currentPref = viaStyle.getPlayerPrefersPrefixForGlobal(player.getUuid());
-        Text feedback;
-        if (currentPref) {
-            feedback = Lang.get("command.current.prefix_global");
-        } else {
-            feedback = Lang.get("command.current.prefix_local");
-        }
-        source.sendFeedback(() -> feedback, false);
-        return 1;
+    private static void appendTrigger(MutableComponent out, String trigger, ChatChannel channel) {
+        if (trigger == null || trigger.isEmpty()) return;
+        out.append(Component.literal(" " + trigger + " ").withStyle(ChatFormatting.WHITE))
+           .append(channelName(channel));
     }
 
-    private static int setLanguage(CommandContext<ServerCommandSource> context) {
+    private static Component channelName(ChatChannel channel) {
+        return Lang.get("channel.name." + channel.id);
+    }
+
+    /** /online — who is on which server of the network. */
+    private static int showOnline(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ServerPlayer viewer = source.getEntity() instanceof ServerPlayer sp ? sp : null;
+        boolean seeVanished = viewer == null
+                || LuckPermsHelper.checkPlayerPermission(viewer, "viastyle.pm.vanished", 2);
+
+        Map<String, List<String>> byServer = new TreeMap<>();
+        for (ServerPlayer p : source.getServer().getPlayerList().getPlayers()) {
+            if (viewer != null && !VanishHelper.canSeePlayer(p, viewer)) continue;
+            byServer.computeIfAbsent(Network.serverDisplayName(), k -> new ArrayList<>()).add(p.getName().getString());
+        }
+        for (Network.NetPlayer p : Network.remotePlayers()) {
+            if (p.vanished() && !seeVanished) continue;
+            byServer.computeIfAbsent(p.display(), k -> new ArrayList<>()).add(p.name());
+        }
+        int total = byServer.values().stream().mapToInt(List::size).sum();
+        MutableComponent header = Lang.getMutable("online.header")
+                .append(Component.literal(String.valueOf(total)).withStyle(ChatFormatting.WHITE));
+        source.sendSuccess(() -> header, false);
+        byServer.forEach((serverName, names) -> {
+            names.sort(String.CASE_INSENSITIVE_ORDER);
+            MutableComponent line = Component.literal(" " + serverName + " (" + names.size() + "): ")
+                    .withStyle(s -> s.withColor(TextColor.fromRgb(0xFCDE9D)))
+                    .append(Component.literal(String.join(", ", names)).withStyle(ChatFormatting.GRAY));
+            source.sendSuccess(() -> line, false);
+        });
+        return total;
+    }
+
+    private static int setLanguage(CommandContext<CommandSourceStack> context) {
         String langArg = StringArgumentType.getString(context, "language");
-        ServerCommandSource source = context.getSource();
+        CommandSourceStack source = context.getSource();
 
         if (Lang.setLang(langArg)) {
             // Persist language choice to config
@@ -107,26 +196,26 @@ public class ChatModeCommand {
             viaStyle.CONFIG.applyLocalizedPlaceholderDefaults(viaStyle.CONFIG.defaultLanguage);
             viaStyle.CONFIG.save();
 
-            Text feedback = Lang.getMutable("command.lang.set")
-                    .append(Text.literal(langArg).formatted(Formatting.AQUA));
-            source.sendFeedback(() -> feedback, true);
+            Component feedback = Lang.getMutable("command.lang.set")
+                    .append(Component.literal(langArg).withStyle(ChatFormatting.AQUA));
+            source.sendSuccess(() -> feedback, true);
             return 1;
         } else {
-            source.sendError(Lang.get("command.lang.invalid"));
+            source.sendFailure(Lang.get("command.lang.invalid"));
             return 0;
         }
     }
 
-    private static int showCurrentLanguage(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-        Text feedback = Lang.getMutable("command.lang.current")
-                .append(Text.literal(Lang.getCurrentLang()).formatted(Formatting.AQUA));
-        source.sendFeedback(() -> feedback, false);
+    private static int showCurrentLanguage(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        Component feedback = Lang.getMutable("command.lang.current")
+                .append(Component.literal(Lang.getCurrentLang()).withStyle(ChatFormatting.AQUA));
+        source.sendSuccess(() -> feedback, false);
         return 1;
     }
 
-    private static int reloadConfig(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int reloadConfig(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
 
         // Reload main config
         viaStyle.CONFIG = ViaStyleConfig.load();
@@ -150,7 +239,7 @@ public class ChatModeCommand {
             }
         }
 
-        source.sendFeedback(
+        source.sendSuccess(
                 () -> Lang.get("reload.done"),
                 true);
         return 1;

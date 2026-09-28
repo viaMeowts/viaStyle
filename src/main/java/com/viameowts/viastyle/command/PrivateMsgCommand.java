@@ -15,23 +15,23 @@ import com.viameowts.viastyle.LuckPermsHelper;
 import com.viameowts.viastyle.MentionHandler;
 import com.viameowts.viastyle.VanishHelper;
 import com.viameowts.viastyle.viaStyle;
-import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
-import net.minecraft.registry.Registries;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.util.Identifier;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-
+import com.viameowts.viastyle.network.Network;
 import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundSource;
 
 /**
  * /msg <player> <message>  — send a private message
@@ -60,12 +60,26 @@ public class PrivateMsgCommand {
      */
     public static void clearPlayer(UUID uuid) {
         lastMsgFrom.remove(uuid);
-        lastMsgFrom.values().removeIf(v -> v.equals(uuid));
+        // In network mode the player may just have moved to another server: /r still works.
+        if (!Network.enabled()) {
+            lastMsgFrom.values().removeIf(v -> v.equals(uuid));
+        }
     }
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher,
-                                CommandRegistryAccess registryAccess,
-                                CommandManager.RegistrationEnvironment environment) {
+    /** A PM from another server was delivered to {@code receiver}. */
+    public static void onRemotePmReceived(ServerPlayer receiver, UUID from) {
+        if (from != null) lastMsgFrom.put(receiver.getUUID(), from);
+        playPmSound(receiver);
+    }
+
+    /** The target server confirmed a PM sent from here. */
+    public static void onRemotePmSent(ServerPlayer sender, UUID target) {
+        lastMsgFrom.put(sender.getUUID(), target);
+    }
+
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
+                                CommandBuildContext registryAccess,
+                                Commands.CommandSelection environment) {
         // Remove vanilla msg/tell/w/reply nodes so our version takes over
         dispatcher.getRoot().getChildren().removeIf(node -> {
             String n = node.getName();
@@ -74,15 +88,15 @@ public class PrivateMsgCommand {
         });
 
         // /msg <player> <message>  (also registered as /m and /w)
-        var msgNode = CommandManager.literal("msg")
-            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.msg"))
-                .then(CommandManager.argument("player", StringArgumentType.word())
+        var msgNode = Commands.literal("msg")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.msg", 0))
+                .then(Commands.argument("player", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
                             String remaining = builder.getRemainingLowerCase();
-                            ServerPlayerEntity sender =
-                                    ctx.getSource().getEntity() instanceof ServerPlayerEntity sp ? sp : null;
-                            for (ServerPlayerEntity p : ctx.getSource().getServer()
-                                    .getPlayerManager().getPlayerList()) {
+                            ServerPlayer sender =
+                                    ctx.getSource().getEntity() instanceof ServerPlayer sp ? sp : null;
+                            for (ServerPlayer p : ctx.getSource().getServer()
+                                    .getPlayerList().getPlayers()) {
                                 // Hide vanished players from PM suggestions
                                 if (sender != null && !VanishHelper.canSeePlayer(p, sender)) continue;
                                 String name = p.getName().getString();
@@ -90,9 +104,18 @@ public class PrivateMsgCommand {
                                     builder.suggest(name);
                                 }
                             }
+                            // Players on other servers of the network
+                            boolean seeVanished = sender == null
+                                    || LuckPermsHelper.checkPlayerPermission(sender, "viastyle.pm.vanished", 2);
+                            for (Network.NetPlayer p : Network.remotePlayers()) {
+                                if (p.vanished() && !seeVanished) continue;
+                                if (p.name().toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                                    builder.suggest(p.name());
+                                }
+                            }
                             return builder.buildFuture();
                         })
-                        .then(CommandManager.argument("message", StringArgumentType.greedyString())
+                        .then(Commands.argument("message", StringArgumentType.greedyString())
                                 .executes(PrivateMsgCommand::sendMsg)))
                 .build();
         dispatcher.getRoot().addChild(msgNode);
@@ -101,9 +124,9 @@ public class PrivateMsgCommand {
         dispatcher.getRoot().addChild(buildAlias("tell", msgNode));
 
         // /reply <message>  (also /r)
-        var replyNode = CommandManager.literal("reply")
-            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.reply"))
-                .then(CommandManager.argument("message", StringArgumentType.greedyString())
+        var replyNode = Commands.literal("reply")
+            .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.reply", 0))
+                .then(Commands.argument("message", StringArgumentType.greedyString())
                         .executes(PrivateMsgCommand::reply))
                 .build();
         dispatcher.getRoot().addChild(replyNode);
@@ -111,29 +134,33 @@ public class PrivateMsgCommand {
     }
 
     /** Creates a redirect alias pointing to {@code target}. */
-    private static CommandNode<ServerCommandSource> buildAlias(
+    private static CommandNode<CommandSourceStack> buildAlias(
             String name,
-            CommandNode<ServerCommandSource> target) {
-        return CommandManager.literal(name).redirect(target).build();
+            CommandNode<CommandSourceStack> target) {
+        return Commands.literal(name).redirect(target).build();
     }
 
     // ── /msg ──────────────────────────────────────────────────────────────────
 
-    private static int sendMsg(CommandContext<ServerCommandSource> context) {
+    private static int sendMsg(CommandContext<CommandSourceStack> context) {
         String targetName = StringArgumentType.getString(context, "player");
         String message    = StringArgumentType.getString(context, "message");
 
-        ServerPlayerEntity target = context.getSource().getServer()
-                .getPlayerManager().getPlayer(targetName);
+        ServerPlayer target = context.getSource().getServer()
+                .getPlayerList().getPlayerByName(targetName);
         if (target == null) {
-            context.getSource().sendError(Lang.get("error.player_not_found"));
+            Network.NetPlayer remote = Network.findRemote(targetName);
+            if (remote != null && context.getSource().getEntity() instanceof ServerPlayer sender) {
+                return deliverRemote(sender, remote, message) ? 1 : 0;
+            }
+            context.getSource().sendFailure(Lang.get("error.player_not_found"));
             return 0;
         }
 
-        if (context.getSource().getEntity() instanceof ServerPlayerEntity sender) {
+        if (context.getSource().getEntity() instanceof ServerPlayer sender) {
             ViaStyleConfig cfg = viaStyle.CONFIG;
             if (target == sender && (cfg == null || !cfg.pmAllowSelfMessage)) {
-                context.getSource().sendError(Lang.get("pm.error.self"));
+                context.getSource().sendFailure(Lang.get("pm.error.self"));
                 return 0;
             }
             return deliver(sender, target, message) ? 1 : 0;
@@ -144,20 +171,24 @@ public class PrivateMsgCommand {
 
     // ── /reply ─────────────────────────────────────────────────────────────────
 
-    private static int reply(CommandContext<ServerCommandSource> context) {
+    private static int reply(CommandContext<CommandSourceStack> context) {
         String message = StringArgumentType.getString(context, "message");
 
-        if (context.getSource().getEntity() instanceof ServerPlayerEntity sender) {
-            UUID targetUuid = lastMsgFrom.get(sender.getUuid());
+        if (context.getSource().getEntity() instanceof ServerPlayer sender) {
+            UUID targetUuid = lastMsgFrom.get(sender.getUUID());
             if (targetUuid == null) {
-                context.getSource().sendError(Lang.get("pm.error.no_reply"));
+                context.getSource().sendFailure(Lang.get("pm.error.no_reply"));
                 return 0;
             }
 
-            ServerPlayerEntity target = context.getSource().getServer()
-                    .getPlayerManager().getPlayer(targetUuid);
+            ServerPlayer target = context.getSource().getServer()
+                    .getPlayerList().getPlayer(targetUuid);
             if (target == null) {
-                context.getSource().sendError(Lang.get("pm.error.offline"));
+                Network.NetPlayer remote = Network.findRemote(targetUuid);
+                if (remote != null) {
+                    return deliverRemote(sender, remote, message) ? 1 : 0;
+                }
+                context.getSource().sendFailure(Lang.get("pm.error.offline"));
                 return 0;
             }
 
@@ -165,14 +196,14 @@ public class PrivateMsgCommand {
         }
 
         if (consoleReplyTarget == null) {
-            context.getSource().sendError(Lang.get("pm.error.no_reply"));
+            context.getSource().sendFailure(Lang.get("pm.error.no_reply"));
             return 0;
         }
 
-        ServerPlayerEntity target = context.getSource().getServer()
-                .getPlayerManager().getPlayer(consoleReplyTarget);
+        ServerPlayer target = context.getSource().getServer()
+                .getPlayerList().getPlayer(consoleReplyTarget);
         if (target == null) {
-            context.getSource().sendError(Lang.get("pm.error.offline"));
+            context.getSource().sendFailure(Lang.get("pm.error.offline"));
             return 0;
         }
 
@@ -181,24 +212,24 @@ public class PrivateMsgCommand {
 
     // ── Core delivery ──────────────────────────────────────────────────────────
 
-    private static boolean deliver(ServerPlayerEntity sender, ServerPlayerEntity receiver, String message) {
+    private static boolean deliver(ServerPlayer sender, ServerPlayer receiver, String message) {
         // ── BanHammer mute check ───────────────────────────────────────────
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg != null && cfg.pmBanHammerMute && BanHammerHelper.isMuted(sender)) {
-            sender.sendMessage(Lang.get("chat.muted"), false);
+            sender.sendSystemMessage(Lang.get("chat.muted"));
             return false;
         }
 
         // ── Ignore check ───────────────────────────────────────────────────
-        if (IgnoreManager.isIgnoring(receiver.getUuid(), sender.getUuid())) {
-            sender.sendMessage(Lang.get("pm.error.ignored"), false);
+        if (IgnoreManager.isIgnoring(receiver.getUUID(), sender.getUUID())) {
+            sender.sendSystemMessage(Lang.get("pm.error.ignored"));
             return false;
         }
 
         // ── Vanish check — block PM to vanished players ────────────────────
         if (VanishHelper.isVanished(receiver)
                 && !LuckPermsHelper.checkPlayerPermission(sender, "viastyle.pm.vanished", 2)) {
-            sender.sendMessage(Lang.get("error.player_not_found"), false);
+            sender.sendSystemMessage(Lang.get("error.player_not_found"));
             return false;
         }
 
@@ -207,33 +238,33 @@ public class PrivateMsgCommand {
         String colorStr    = cfg != null ? cfg.pmColor          : "LIGHT_PURPLE";
 
         TextColor color = cfg != null
-                ? cfg.resolveColor(colorStr, TextColor.fromFormatting(Formatting.LIGHT_PURPLE))
-                : TextColor.fromFormatting(Formatting.LIGHT_PURPLE);
+                ? cfg.resolveColor(colorStr, TextColor.fromLegacyFormat(ChatFormatting.LIGHT_PURPLE))
+                : TextColor.fromLegacyFormat(ChatFormatting.LIGHT_PURPLE);
 
         String senderName   = sender.getName().getString();
         String receiverName = receiver.getName().getString();
 
-        net.minecraft.server.MinecraftServer server = sender.getEntityWorld().getServer();
+        net.minecraft.server.MinecraftServer server = sender.level().getServer();
         ChatSharePlaceholders.ProcessedMessage processed = ChatSharePlaceholders.processMessage(
             message,
             sender,
             server,
             color);
 
-        Text senderNameText = buildClickableName(senderName);
-        Text receiverNameText = buildClickableName(receiverName);
+        Component senderNameText = buildClickableName(senderName);
+        Component receiverNameText = buildClickableName(receiverName);
 
-        Text senderMsg = formatPmMessage(senderFmt, color,
+        Component senderMsg = formatPmMessage(senderFmt, color,
             senderNameText, receiverNameText, processed.component());
-        Text receiverMsg = formatPmMessage(receiverFmt, color,
+        Component receiverMsg = formatPmMessage(receiverFmt, color,
             senderNameText, receiverNameText, processed.component());
 
-        sender.sendMessage(senderMsg, false);
-        receiver.sendMessage(receiverMsg, false);
+        sender.sendSystemMessage(senderMsg);
+        receiver.sendSystemMessage(receiverMsg);
 
         // Track for /reply in both directions
-        lastMsgFrom.put(receiver.getUuid(), sender.getUuid());
-        lastMsgFrom.put(sender.getUuid(), receiver.getUuid());
+        lastMsgFrom.put(receiver.getUUID(), sender.getUUID());
+        lastMsgFrom.put(sender.getUUID(), receiver.getUUID());
 
         // SocialSpy relay for private messages
         if (server != null) {
@@ -246,26 +277,66 @@ public class PrivateMsgCommand {
             viaStyle.LOGGER.info("[PM] {} -> {}: {}", senderName, receiverName, message);
         }
 
-        // ── Per-player PM sound ────────────────────────────────────────────
-        if (cfg != null && cfg.pmSoundEnabled && viaStyle.isPmSoundEnabled(receiver.getUuid())) {
+        playPmSound(receiver);
+
+        return true;
+    }
+
+    /** PM to a player on another server; the echo is shown once that server confirms. */
+    private static boolean deliverRemote(ServerPlayer sender, Network.NetPlayer receiver, String message) {
+        ViaStyleConfig cfg = viaStyle.CONFIG;
+        if (cfg != null && cfg.pmBanHammerMute && BanHammerHelper.isMuted(sender)) {
+            sender.sendSystemMessage(Lang.get("chat.muted"));
+            return false;
+        }
+        boolean seeVanished = LuckPermsHelper.checkPlayerPermission(sender, "viastyle.pm.vanished", 2);
+        if (receiver.vanished() && !seeVanished) {
+            sender.sendSystemMessage(Lang.get("error.player_not_found"));
+            return false;
+        }
+
+        String senderFmt   = cfg != null ? cfg.pmSenderFormat   : "[PM -> {receiver}] {message}";
+        String receiverFmt = cfg != null ? cfg.pmReceiverFormat : "[PM <- {sender}] {message}";
+        String colorStr    = cfg != null ? cfg.pmColor          : "LIGHT_PURPLE";
+        TextColor color = cfg != null
+                ? cfg.resolveColor(colorStr, TextColor.fromLegacyFormat(ChatFormatting.LIGHT_PURPLE))
+                : TextColor.fromLegacyFormat(ChatFormatting.LIGHT_PURPLE);
+
+        net.minecraft.server.MinecraftServer server = sender.level().getServer();
+        ChatSharePlaceholders.ProcessedMessage processed =
+                ChatSharePlaceholders.processMessage(message, sender, server, color);
+
+        Component senderNameText = buildClickableName(sender.getName().getString());
+        Component receiverNameText = buildClickableName(receiver.name());
+        Component senderMsg = formatPmMessage(senderFmt, color,
+                senderNameText, receiverNameText, processed.component());
+        Component receiverMsg = formatPmMessage(receiverFmt, color,
+                senderNameText, receiverNameText, processed.component());
+
+        Network.sendPm(sender, receiver, receiverMsg, senderMsg, message, seeVanished);
+        return true;
+    }
+
+    /** Notification sound for an incoming PM, if enabled globally and by the receiver. */
+    private static void playPmSound(ServerPlayer receiver) {
+        ViaStyleConfig cfg = viaStyle.CONFIG;
+        if (cfg != null && cfg.pmSoundEnabled && viaStyle.isPmSoundEnabled(receiver.getUUID())) {
             Identifier soundId = Identifier.tryParse(cfg.pmSoundId);
             if (soundId != null) {
-                Registries.SOUND_EVENT.getEntry(soundId)
-                        .ifPresent(entry -> receiver.networkHandler.sendPacket(new PlaySoundS2CPacket(
-                                entry, SoundCategory.PLAYERS,
+                BuiltInRegistries.SOUND_EVENT.get(soundId)
+                        .ifPresent(entry -> receiver.connection.send(new ClientboundSoundPacket(
+                                entry, SoundSource.PLAYERS,
                                 receiver.getX(), receiver.getY(), receiver.getZ(),
                                 (float) cfg.pmSoundVolume, (float) cfg.pmSoundPitch,
                                 receiver.getRandom().nextLong())));
             }
         }
-
-        return true;
     }
 
     // ── Console delivery ────────────────────────────────────────────────────────
 
-    private static boolean deliverFromConsole(ServerCommandSource source,
-                                               ServerPlayerEntity receiver,
+    private static boolean deliverFromConsole(CommandSourceStack source,
+                                               ServerPlayer receiver,
                                                String message) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
 
@@ -274,8 +345,8 @@ public class PrivateMsgCommand {
         String colorStr    = cfg != null ? cfg.pmColor          : "LIGHT_PURPLE";
 
         TextColor color = cfg != null
-                ? cfg.resolveColor(colorStr, TextColor.fromFormatting(Formatting.LIGHT_PURPLE))
-                : TextColor.fromFormatting(Formatting.LIGHT_PURPLE);
+                ? cfg.resolveColor(colorStr, TextColor.fromLegacyFormat(ChatFormatting.LIGHT_PURPLE))
+                : TextColor.fromLegacyFormat(ChatFormatting.LIGHT_PURPLE);
 
         String senderName   = Lang.get("pm.console_name").getString();
         String receiverName = receiver.getName().getString();
@@ -283,22 +354,22 @@ public class PrivateMsgCommand {
         net.minecraft.server.MinecraftServer server = source.getServer();
 
         // Console messages skip [item]/[pos]/[inv]/[ec] expansion, only highlight @mentions
-        Text processedMessage = MentionHandler.highlightMentions(
+        Component processedMessage = MentionHandler.highlightMentions(
                 message, color, server, null, false);
 
-        Text senderNameText = buildClickableName(senderName);
-        Text receiverNameText = buildClickableName(receiverName);
+        Component senderNameText = buildClickableName(senderName);
+        Component receiverNameText = buildClickableName(receiverName);
 
-        Text senderMsg = formatPmMessage(senderFmt, color,
+        Component senderMsg = formatPmMessage(senderFmt, color,
                 senderNameText, receiverNameText, processedMessage);
-        Text receiverMsg = formatPmMessage(receiverFmt, color,
+        Component receiverMsg = formatPmMessage(receiverFmt, color,
                 senderNameText, receiverNameText, processedMessage);
 
-        receiver.sendMessage(receiverMsg, false);
-        source.sendFeedback(() -> senderMsg, false);
+        receiver.sendSystemMessage(receiverMsg);
+        source.sendSuccess(() -> senderMsg, false);
 
         // Track for /reply from console only (players cannot reply to console)
-        consoleReplyTarget = receiver.getUuid();
+        consoleReplyTarget = receiver.getUUID();
 
         // SocialSpy relay for private messages
         if (server != null) {
@@ -311,51 +382,40 @@ public class PrivateMsgCommand {
             viaStyle.LOGGER.info("[PM] {} -> {}: {}", senderName, receiverName, message);
         }
 
-        // ── Per-player PM sound ────────────────────────────────────────────
-        if (cfg != null && cfg.pmSoundEnabled && viaStyle.isPmSoundEnabled(receiver.getUuid())) {
-            Identifier soundId = Identifier.tryParse(cfg.pmSoundId);
-            if (soundId != null) {
-                Registries.SOUND_EVENT.getEntry(soundId)
-                        .ifPresent(entry -> receiver.networkHandler.sendPacket(new PlaySoundS2CPacket(
-                                entry, SoundCategory.PLAYERS,
-                                receiver.getX(), receiver.getY(), receiver.getZ(),
-                                (float) cfg.pmSoundVolume, (float) cfg.pmSoundPitch,
-                                receiver.getRandom().nextLong())));
-            }
-        }
+        playPmSound(receiver);
 
         return true;
     }
 
-    private static Text buildClickableName(String playerName) {
-        return Text.literal(playerName).styled(s -> s
-                .withClickEvent(new net.minecraft.text.ClickEvent.SuggestCommand("/m " + playerName + " "))
-                .withHoverEvent(new net.minecraft.text.HoverEvent.ShowText(
-                        Text.literal("/m " + playerName).formatted(Formatting.GRAY))));
+    private static Component buildClickableName(String playerName) {
+        return Component.literal(playerName).withStyle(s -> s
+                .withClickEvent(new net.minecraft.network.chat.ClickEvent.SuggestCommand("/m " + playerName + " "))
+                .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(
+                        Component.literal("/m " + playerName).withStyle(ChatFormatting.GRAY))));
     }
 
-    private static Text formatPmMessage(String format,
+    private static Component formatPmMessage(String format,
                                         TextColor baseColor,
-                                        Text senderName,
-                                        Text receiverName,
-                                        Text messageText) {
+                                        Component senderName,
+                                        Component receiverName,
+                                        Component messageText) {
         if (format == null || format.isBlank()) {
-            return Text.empty();
+            return Component.empty();
         }
 
-        MutableText out = Text.empty();
+        MutableComponent out = Component.empty();
         int cursor = 0;
         while (cursor < format.length()) {
             int next = findNextToken(format, cursor);
             if (next < 0) {
                 String tail = format.substring(cursor);
-                out.append(Text.literal(tail));
+                out.append(Component.literal(tail));
                 break;
             }
 
             if (next > cursor) {
                 String literal = format.substring(cursor, next);
-                out.append(Text.literal(literal));
+                out.append(Component.literal(literal));
             }
 
             if (format.startsWith("{sender}", next)) {
@@ -368,12 +428,12 @@ public class PrivateMsgCommand {
                 out.append(messageText);
                 cursor = next + "{message}".length();
             } else {
-                out.append(Text.literal(format.substring(next, next + 1)));
+                out.append(Component.literal(format.substring(next, next + 1)));
                 cursor = next + 1;
             }
         }
 
-        return out.styled(s -> s.withColor(baseColor));
+        return out.withStyle(s -> s.withColor(baseColor));
     }
 
     private static int findNextToken(String format, int startIndex) {

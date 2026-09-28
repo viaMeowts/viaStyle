@@ -1,12 +1,11 @@
 package com.viameowts.viastyle;
 
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-
 import java.util.HashMap;
 import java.util.Map;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
 
 /**
  * Bilingual message registry (en / ru).
@@ -30,252 +29,279 @@ public class Lang {
     /** Negative / OFF / errors */
         private static final TextColor COLOR_RED    = TextColor.fromRgb(0xFF5555);
 
-    private static final Map<String, Text> enMessages = new HashMap<>();
-    private static final Map<String, Text> ruMessages = new HashMap<>();
+    private static final Map<String, Component> enMessages = new HashMap<>();
+    private static final Map<String, Component> ruMessages = new HashMap<>();
     private static final Map<String, String> enRaw = new HashMap<>();
     private static final Map<String, String> ruRaw = new HashMap<>();
 
     public static void initialize() {
         // ── General errors ─────────────────────────────────────────────────
         put("error.player_only",
-                styled("This command can only be run by a player.", Formatting.RED),
-                styled("Эту команду может использовать только игрок.", Formatting.RED));
+                styled("This command can only be run by a player.", ChatFormatting.RED),
+                styled("Эту команду может использовать только игрок.", ChatFormatting.RED));
         put("error.player_not_found",
-                styled("Player not found.", Formatting.RED),
-                styled("Игрок не найден.", Formatting.RED));
+                styled("Player not found.", ChatFormatting.RED),
+                styled("Игрок не найден.", ChatFormatting.RED));
         put("error.config_not_loaded",
-                styled("Config not loaded.", Formatting.RED),
-                styled("Конфиг не загружен.", Formatting.RED));
+                styled("Config not loaded.", ChatFormatting.RED),
+                styled("Конфиг не загружен.", ChatFormatting.RED));
 
         // ── Chat Mode (/viaStyle) ────────────────────────────────────────────
         put("command.set.prefix_local",
-                styled("Chat mode set: ", Formatting.GRAY)
-                        .append(styled("Use '!' for Local chat", Formatting.GREEN))
-                        .append(styled(".", Formatting.GRAY)),
-                styled("Режим чата изменен: ", Formatting.GRAY)
-                        .append(styled("Используйте '!' для Локального чата", Formatting.GREEN))
-                        .append(styled(".", Formatting.GRAY)));
+                styled("Chat mode set: ", ChatFormatting.GRAY)
+                        .append(styled("Use '!' for Local chat", ChatFormatting.GREEN))
+                        .append(styled(".", ChatFormatting.GRAY)),
+                styled("Режим чата изменен: ", ChatFormatting.GRAY)
+                        .append(styled("Используйте '!' для Локального чата", ChatFormatting.GREEN))
+                        .append(styled(".", ChatFormatting.GRAY)));
         put("command.set.prefix_global",
-                styled("Chat mode set: ", Formatting.GRAY)
-                        .append(styled("Use '!' for Global chat", Formatting.YELLOW))
-                        .append(styled(" (default).", Formatting.GRAY)),
-                styled("Режим чата изменен: ", Formatting.GRAY)
-                        .append(styled("Используйте '!' для Глобального чата", Formatting.YELLOW))
-                        .append(styled(" (по умолчанию).", Formatting.GRAY)));
+                styled("Chat mode set: ", ChatFormatting.GRAY)
+                        .append(styled("Use '!' for Global chat", ChatFormatting.YELLOW))
+                        .append(styled(" (default).", ChatFormatting.GRAY)),
+                styled("Режим чата изменен: ", ChatFormatting.GRAY)
+                        .append(styled("Используйте '!' для Глобального чата", ChatFormatting.YELLOW))
+                        .append(styled(" (по умолчанию).", ChatFormatting.GRAY)));
         put("command.current.prefix_local",
-                styled("Current mode: ", Formatting.GRAY)
-                        .append(styled("'!' means Local chat", Formatting.GREEN)),
-                styled("Текущий режим: ", Formatting.GRAY)
-                        .append(styled("'!' означает Локальный чат", Formatting.GREEN)));
+                styled("Current mode: ", ChatFormatting.GRAY)
+                        .append(styled("'!' means Local chat", ChatFormatting.GREEN)),
+                styled("Текущий режим: ", ChatFormatting.GRAY)
+                        .append(styled("'!' означает Локальный чат", ChatFormatting.GREEN)));
         put("command.current.prefix_global",
-                styled("Current mode: ", Formatting.GRAY)
-                        .append(styled("'!' means Global chat", Formatting.YELLOW)),
-                styled("Текущий режим: ", Formatting.GRAY)
-                        .append(styled("'!' означает Глобальный чат", Formatting.YELLOW)));
+                styled("Current mode: ", ChatFormatting.GRAY)
+                        .append(styled("'!' means Global chat", ChatFormatting.YELLOW)),
+                styled("Текущий режим: ", ChatFormatting.GRAY)
+                        .append(styled("'!' означает Глобальный чат", ChatFormatting.YELLOW)));
         put("command.lang.set",
-                styled("Language set to: ", Formatting.GRAY),
-                styled("Язык изменен на: ", Formatting.GRAY));
+                styled("Language set to: ", ChatFormatting.GRAY),
+                styled("Язык изменен на: ", ChatFormatting.GRAY));
         put("command.lang.invalid",
-                styled("Invalid language. Use 'en' or 'ru'.", Formatting.RED),
-                styled("Неверный язык. Используйте 'en' или 'ru'.", Formatting.RED));
+                styled("Invalid language. Use 'en' or 'ru'.", ChatFormatting.RED),
+                styled("Неверный язык. Используйте 'en' или 'ru'.", ChatFormatting.RED));
         put("command.lang.current",
-                styled("Current language: ", Formatting.GRAY),
-                styled("Текущий язык: ", Formatting.GRAY));
+                styled("Current language: ", ChatFormatting.GRAY),
+                styled("Текущий язык: ", ChatFormatting.GRAY));
 
         // ── Chat ───────────────────────────────────────────────────────────
         put("chat.muted",
-                styled("You are muted and cannot send messages.", Formatting.RED),
-                styled("Вы заглушены и не можете отправлять сообщения.", Formatting.RED));
+                styled("You are muted and cannot send messages.", ChatFormatting.RED),
+                styled("Вы заглушены и не можете отправлять сообщения.", ChatFormatting.RED));
         put("chat.staff_no_permission",
-                styled("You don't have permission to use staff chat.", Formatting.RED),
-                styled("У вас нет разрешения на использование стаф-чата.", Formatting.RED));
+                styled("You don't have permission to use staff chat.", ChatFormatting.RED),
+                styled("У вас нет разрешения на использование стаф-чата.", ChatFormatting.RED));
         put("chat.placeholder.cooldown",
-                styled("You can use chat placeholders again in ", Formatting.RED),
-                styled("Вы сможете снова использовать чат-плейсхолдеры через ", Formatting.RED));
+                styled("You can use chat placeholders again in ", ChatFormatting.RED),
+                styled("Вы сможете снова использовать чат-плейсхолдеры через ", ChatFormatting.RED));
         put("chat.placeholder.no_permission",
-                styled("You don't have permission to use this chat placeholder.", Formatting.RED),
-                styled("У вас нет прав на использование этого чат-плейсхолдера.", Formatting.RED));
+                styled("You don't have permission to use this chat placeholder.", ChatFormatting.RED),
+                styled("У вас нет прав на использование этого чат-плейсхолдера.", ChatFormatting.RED));
         put("chat.placeholder.no_item",
-                styled("You have no item in hand to share.", Formatting.RED),
-                styled("У вас нет предмета в руках для отправки.", Formatting.RED));
+                styled("You have no item in hand to share.", ChatFormatting.RED),
+                styled("У вас нет предмета в руках для отправки.", ChatFormatting.RED));
         put("chat.placeholder.view_expired",
-                styled("This shared view has expired or does not exist.", Formatting.RED),
-                styled("Этот общий просмотр истек или не существует.", Formatting.RED));
+                styled("This shared view has expired or does not exist.", ChatFormatting.RED),
+                styled("Этот общий просмотр истек или не существует.", ChatFormatting.RED));
 
         // ── Broadcast (/bc) ──────────────────────────────────────────────
         put("broadcast.cooldown",
-                styled("[viaStyle] Cooldown: ", Formatting.RED),
-                styled("[viaStyle] Кулдаун: ", Formatting.RED));
+                styled("[viaStyle] Cooldown: ", ChatFormatting.RED),
+                styled("[viaStyle] Кулдаун: ", ChatFormatting.RED));
         put("broadcast.cooldown_suffix",
-                styled("s", Formatting.RED),
-                styled("с", Formatting.RED));
+                styled("s", ChatFormatting.RED),
+                styled("с", ChatFormatting.RED));
         put("broadcast.feedback_prefix",
-                styled("[viaStyle] Broadcast sent to ", Formatting.GREEN),
-                styled("[viaStyle] Объявление отправлено ", Formatting.GREEN));
+                styled("[viaStyle] Broadcast sent to ", ChatFormatting.GREEN),
+                styled("[viaStyle] Объявление отправлено ", ChatFormatting.GREEN));
         put("broadcast.feedback_suffix",
-                styled(" player(s).", Formatting.GREEN),
-                styled(" игрок(ам).", Formatting.GREEN));
+                styled(" player(s).", ChatFormatting.GREEN),
+                styled(" игрок(ам).", ChatFormatting.GREEN));
 
         // ── JoinLeave self command ───────────────────────────────────────
         put("joinleave.self.show_join",
-                styled("[joinleave] join: ", Formatting.YELLOW),
-                styled("[joinleave] вход: ", Formatting.YELLOW));
+                styled("[joinleave] join: ", ChatFormatting.YELLOW),
+                styled("[joinleave] вход: ", ChatFormatting.YELLOW));
         put("joinleave.self.show_leave",
-                styled("[joinleave] leave: ", Formatting.YELLOW),
-                styled("[joinleave] выход: ", Formatting.YELLOW));
+                styled("[joinleave] leave: ", ChatFormatting.YELLOW),
+                styled("[joinleave] выход: ", ChatFormatting.YELLOW));
         put("joinleave.self.default_marker",
-                styled("(default)", Formatting.DARK_GRAY),
-                styled("(по умолчанию)", Formatting.DARK_GRAY));
+                styled("(default)", ChatFormatting.DARK_GRAY),
+                styled("(по умолчанию)", ChatFormatting.DARK_GRAY));
         put("joinleave.self.saved_join",
-                styled("[joinleave] Saved personal join format.", Formatting.GREEN),
-                styled("[joinleave] Личный формат входа сохранен.", Formatting.GREEN));
+                styled("[joinleave] Saved personal join format.", ChatFormatting.GREEN),
+                styled("[joinleave] Личный формат входа сохранен.", ChatFormatting.GREEN));
         put("joinleave.self.saved_leave",
-                styled("[joinleave] Saved personal leave format.", Formatting.GREEN),
-                styled("[joinleave] Личный формат выхода сохранен.", Formatting.GREEN));
+                styled("[joinleave] Saved personal leave format.", ChatFormatting.GREEN),
+                styled("[joinleave] Личный формат выхода сохранен.", ChatFormatting.GREEN));
         put("joinleave.self.updated",
-                styled("[joinleave] Personal override updated.", Formatting.GREEN),
-                styled("[joinleave] Личные переопределения обновлены.", Formatting.GREEN));
+                styled("[joinleave] Personal override updated.", ChatFormatting.GREEN),
+                styled("[joinleave] Личные переопределения обновлены.", ChatFormatting.GREEN));
         put("joinleave.admin.player_not_found",
-                styled("[joinleave] Player not found online.", Formatting.RED),
-                styled("[joinleave] Игрок не найден в онлайне.", Formatting.RED));
+                styled("[joinleave] Player not found online.", ChatFormatting.RED),
+                styled("[joinleave] Игрок не найден в онлайне.", ChatFormatting.RED));
         put("joinleave.admin.show_player_join",
-                styled("[joinleave] player join ", Formatting.YELLOW),
-                styled("[joinleave] вход игрока ", Formatting.YELLOW));
+                styled("[joinleave] player join ", ChatFormatting.YELLOW),
+                styled("[joinleave] вход игрока ", ChatFormatting.YELLOW));
         put("joinleave.admin.show_player_leave",
-                styled("[joinleave] player leave ", Formatting.YELLOW),
-                styled("[joinleave] выход игрока ", Formatting.YELLOW));
+                styled("[joinleave] player leave ", ChatFormatting.YELLOW),
+                styled("[joinleave] выход игрока ", ChatFormatting.YELLOW));
         put("joinleave.admin.show_group_join",
-                styled("[joinleave] group join ", Formatting.YELLOW),
-                styled("[joinleave] вход группы ", Formatting.YELLOW));
+                styled("[joinleave] group join ", ChatFormatting.YELLOW),
+                styled("[joinleave] вход группы ", ChatFormatting.YELLOW));
         put("joinleave.admin.show_group_leave",
-                styled("[joinleave] group leave ", Formatting.YELLOW),
-                styled("[joinleave] выход группы ", Formatting.YELLOW));
+                styled("[joinleave] group leave ", ChatFormatting.YELLOW),
+                styled("[joinleave] выход группы ", ChatFormatting.YELLOW));
         put("joinleave.admin.saved_player_join",
-                styled("[joinleave] Saved player join format for ", Formatting.GREEN),
-                styled("[joinleave] Формат входа сохранен для игрока ", Formatting.GREEN));
+                styled("[joinleave] Saved player join format for ", ChatFormatting.GREEN),
+                styled("[joinleave] Формат входа сохранен для игрока ", ChatFormatting.GREEN));
         put("joinleave.admin.saved_player_leave",
-                styled("[joinleave] Saved player leave format for ", Formatting.GREEN),
-                styled("[joinleave] Формат выхода сохранен для игрока ", Formatting.GREEN));
+                styled("[joinleave] Saved player leave format for ", ChatFormatting.GREEN),
+                styled("[joinleave] Формат выхода сохранен для игрока ", ChatFormatting.GREEN));
         put("joinleave.admin.saved_group_join",
-                styled("[joinleave] Saved group join format for ", Formatting.GREEN),
-                styled("[joinleave] Формат входа сохранен для группы ", Formatting.GREEN));
+                styled("[joinleave] Saved group join format for ", ChatFormatting.GREEN),
+                styled("[joinleave] Формат входа сохранен для группы ", ChatFormatting.GREEN));
         put("joinleave.admin.saved_group_leave",
-                styled("[joinleave] Saved group leave format for ", Formatting.GREEN),
-                styled("[joinleave] Формат выхода сохранен для группы ", Formatting.GREEN));
+                styled("[joinleave] Saved group leave format for ", ChatFormatting.GREEN),
+                styled("[joinleave] Формат выхода сохранен для группы ", ChatFormatting.GREEN));
         put("joinleave.admin.removed_player",
-                styled("[joinleave] Removed player overrides for ", Formatting.GREEN),
-                styled("[joinleave] Переопределения игрока удалены для ", Formatting.GREEN));
+                styled("[joinleave] Removed player overrides for ", ChatFormatting.GREEN),
+                styled("[joinleave] Переопределения игрока удалены для ", ChatFormatting.GREEN));
         put("joinleave.admin.removed_group",
-                styled("[joinleave] Removed group overrides for ", Formatting.GREEN),
-                styled("[joinleave] Переопределения группы удалены для ", Formatting.GREEN));
+                styled("[joinleave] Removed group overrides for ", ChatFormatting.GREEN),
+                styled("[joinleave] Переопределения группы удалены для ", ChatFormatting.GREEN));
 
         // ── ViaSuper ─────────────────────────────────────────────────────
         put("viasuper.sent_prefix",
-                styled("[viaStyle] Title sent (", Formatting.GREEN),
-                styled("[viaStyle] Заголовок отправлен (", Formatting.GREEN));
+                styled("[viaStyle] Title sent (", ChatFormatting.GREEN),
+                styled("[viaStyle] Заголовок отправлен (", ChatFormatting.GREEN));
         put("viasuper.sent_words_suffix",
-                styled(" words) to ", Formatting.GREEN),
-                styled(" слов) для ", Formatting.GREEN));
+                styled(" words) to ", ChatFormatting.GREEN),
+                styled(" слов) для ", ChatFormatting.GREEN));
         put("viasuper.sent_players_suffix",
-                styled(" player(s).", Formatting.GREEN),
-                styled(" игрок(ов).", Formatting.GREEN));
+                styled(" player(s).", ChatFormatting.GREEN),
+                styled(" игрок(ов).", ChatFormatting.GREEN));
 
         // ── Ignore ─────────────────────────────────────────────────────────
         put("ignore.added",
-                styled("Now ignoring ", Formatting.YELLOW),
-                styled("Теперь игнорируете ", Formatting.YELLOW));
+                styled("Now ignoring ", ChatFormatting.YELLOW),
+                styled("Теперь игнорируете ", ChatFormatting.YELLOW));
         put("ignore.added_suffix",
-                styled(". They can no longer PM you.", Formatting.YELLOW),
-                styled(". Личные сообщения от них заблокированы.", Formatting.YELLOW));
+                styled(". They can no longer PM you.", ChatFormatting.YELLOW),
+                styled(". Личные сообщения от них заблокированы.", ChatFormatting.YELLOW));
         put("ignore.removed",
-                styled("Unignored ", Formatting.GREEN),
-                styled("Разблокирован ", Formatting.GREEN));
+                styled("Unignored ", ChatFormatting.GREEN),
+                styled("Разблокирован ", ChatFormatting.GREEN));
         put("ignore.not_ignoring",
-                styled("You are not ignoring ", Formatting.GRAY),
-                styled("Вы не игнорируете ", Formatting.GRAY));
+                styled("You are not ignoring ", ChatFormatting.GRAY),
+                styled("Вы не игнорируете ", ChatFormatting.GRAY));
         put("ignore.self",
-                styled("You cannot ignore yourself.", Formatting.RED),
-                styled("Вы не можете игнорировать себя.", Formatting.RED));
+                styled("You cannot ignore yourself.", ChatFormatting.RED),
+                styled("Вы не можете игнорировать себя.", ChatFormatting.RED));
         put("ignore.list_empty",
-                styled("Your ignore list is empty.", Formatting.GRAY),
-                styled("Ваш список игнорирования пуст.", Formatting.GRAY));
+                styled("Your ignore list is empty.", ChatFormatting.GRAY),
+                styled("Ваш список игнорирования пуст.", ChatFormatting.GRAY));
         put("ignore.list_header",
-                styled("Ignored players", Formatting.YELLOW),
-                styled("Игнорируемые игроки", Formatting.YELLOW));
+                styled("Ignored players", ChatFormatting.YELLOW),
+                styled("Игнорируемые игроки", ChatFormatting.YELLOW));
         put("ignore.offline",
-                styled(" (offline)", Formatting.DARK_GRAY),
-                styled(" (офлайн)", Formatting.DARK_GRAY));
+                styled(" (offline)", ChatFormatting.DARK_GRAY),
+                styled(" (офлайн)", ChatFormatting.DARK_GRAY));
 
         // ── Private Messages ───────────────────────────────────────────────
         put("pm.error.self",
-                styled("You cannot message yourself.", Formatting.RED),
-                styled("Вы не можете написать себе.", Formatting.RED));
+                styled("You cannot message yourself.", ChatFormatting.RED),
+                styled("Вы не можете написать себе.", ChatFormatting.RED));
         put("pm.error.no_reply",
-                styled("No one to reply to.", Formatting.RED),
-                styled("Некому ответить.", Formatting.RED));
+                styled("No one to reply to.", ChatFormatting.RED),
+                styled("Некому ответить.", ChatFormatting.RED));
         put("pm.error.offline",
-                styled("That player is no longer online.", Formatting.RED),
-                styled("Этот игрок больше не в сети.", Formatting.RED));
+                styled("That player is no longer online.", ChatFormatting.RED),
+                styled("Этот игрок больше не в сети.", ChatFormatting.RED));
         put("pm.error.ignored",
-                styled("That player is ignoring you.", Formatting.RED),
-                styled("Этот игрок игнорирует вас.", Formatting.RED));
+                styled("That player is ignoring you.", ChatFormatting.RED),
+                styled("Этот игрок игнорирует вас.", ChatFormatting.RED));
+        put("pm.error.not_delivered",
+                styled("The message was not delivered: the other server did not answer.", ChatFormatting.RED),
+                styled("Сообщение не доставлено: другой сервер не ответил.", ChatFormatting.RED));
         put("pm.console_name",
-                Text.literal("Console"),
-                Text.literal("Консоль"));
+                Component.literal("Console"),
+                Component.literal("Консоль"));
+
+        // ── Channels (/ch) ─────────────────────────────────────────────────
+        put("channel.name.local",   styled("local", ChatFormatting.GREEN),        styled("локальный", ChatFormatting.GREEN));
+        put("channel.name.planet",  styled("planet", ChatFormatting.YELLOW),      styled("планета", ChatFormatting.YELLOW));
+        put("channel.name.network", styled("network", ChatFormatting.GOLD),       styled("сеть", ChatFormatting.GOLD));
+        put("channel.name.staff",   styled("staff", ChatFormatting.RED),          styled("штаб", ChatFormatting.RED));
+        put("channel.set",
+                styled("Default chat channel: ", ChatFormatting.GRAY),
+                styled("Канал чата по умолчанию: ", ChatFormatting.GRAY));
+        put("channel.current",
+                styled("Your chat channel: ", ChatFormatting.GRAY),
+                styled("Ваш канал чата: ", ChatFormatting.GRAY));
+        put("channel.unknown",
+                styled("Unknown channel. Use: local, planet, network, staff.", ChatFormatting.RED),
+                styled("Неизвестный канал. Доступны: локальный, планета, сеть, штаб.", ChatFormatting.RED));
+        put("channel.no_network",
+                styled("Network chat is off on this server.", ChatFormatting.RED),
+                styled("Сетевой чат на этом сервере выключен.", ChatFormatting.RED));
+        put("channel.triggers",
+                styled("Prefixes: ", ChatFormatting.DARK_GRAY),
+                styled("Префиксы: ", ChatFormatting.DARK_GRAY));
+        put("online.header",
+                styled("Online in the network: ", ChatFormatting.GRAY),
+                styled("Онлайн в сети: ", ChatFormatting.GRAY));
 
         // ── Mentions ───────────────────────────────────────────────────────
         put("mention.notify",
-                styled("You were mentioned by ", Formatting.GOLD),
-                styled("Вас упомянул ", Formatting.GOLD));
+                styled("You were mentioned by ", ChatFormatting.GOLD),
+                styled("Вас упомянул ", ChatFormatting.GOLD));
 
         // ── SocialSpy ──────────────────────────────────────────────────────
         put("spy.header",
-                styled("SocialSpy", Formatting.GOLD),
-                styled("SocialSpy", Formatting.GOLD));
+                styled("SocialSpy", ChatFormatting.GOLD),
+                styled("SocialSpy", ChatFormatting.GOLD));
         put("spy.master",
-                styled("  Master: ", Formatting.GRAY),
-                styled("  Общий: ", Formatting.GRAY));
+                styled("  Master: ", ChatFormatting.GRAY),
+                styled("  Общий: ", ChatFormatting.GRAY));
         put("spy.enabled_all",
-                styled("SocialSpy ", Formatting.GOLD)
-                        .append(styled("enabled", Formatting.GREEN))
-                        .append(styled(" for all channels.", Formatting.GOLD)),
-                styled("SocialSpy ", Formatting.GOLD)
-                        .append(styled("включен", Formatting.GREEN))
-                        .append(styled(" для всех каналов.", Formatting.GOLD)));
+                styled("SocialSpy ", ChatFormatting.GOLD)
+                        .append(styled("enabled", ChatFormatting.GREEN))
+                        .append(styled(" for all channels.", ChatFormatting.GOLD)),
+                styled("SocialSpy ", ChatFormatting.GOLD)
+                        .append(styled("включен", ChatFormatting.GREEN))
+                        .append(styled(" для всех каналов.", ChatFormatting.GOLD)));
         put("spy.disabled_all",
-                styled("SocialSpy ", Formatting.GOLD)
-                        .append(styled("disabled", Formatting.RED))
-                        .append(styled(".", Formatting.GOLD)),
-                styled("SocialSpy ", Formatting.GOLD)
-                        .append(styled("выключен", Formatting.RED))
-                        .append(styled(".", Formatting.GOLD)));
+                styled("SocialSpy ", ChatFormatting.GOLD)
+                        .append(styled("disabled", ChatFormatting.RED))
+                        .append(styled(".", ChatFormatting.GOLD)),
+                styled("SocialSpy ", ChatFormatting.GOLD)
+                        .append(styled("выключен", ChatFormatting.RED))
+                        .append(styled(".", ChatFormatting.GOLD)));
         put("spy.channel_unknown",
-                styled("Unknown channel. Use: local, global, staff, pm", Formatting.RED),
-                styled("Неизвестный канал. Используйте: local, global, staff, pm", Formatting.RED));
+                styled("Unknown channel. Use: local, global, staff, pm", ChatFormatting.RED),
+                styled("Неизвестный канал. Используйте: local, global, staff, pm", ChatFormatting.RED));
         put("spy.click_toggle",
-                styled("Click to toggle", Formatting.YELLOW),
-                styled("Нажмите для переключения", Formatting.YELLOW));
+                styled("Click to toggle", ChatFormatting.YELLOW),
+                styled("Нажмите для переключения", ChatFormatting.YELLOW));
         put("spy.click_enable_all",
-                styled("Click to enable all", Formatting.GREEN),
-                styled("Нажмите чтобы включить все", Formatting.GREEN));
+                styled("Click to enable all", ChatFormatting.GREEN),
+                styled("Нажмите чтобы включить все", ChatFormatting.GREEN));
         put("spy.click_disable_all",
-                styled("Click to disable all", Formatting.RED),
-                styled("Нажмите чтобы выключить все", Formatting.RED));
+                styled("Click to disable all", ChatFormatting.RED),
+                styled("Нажмите чтобы выключить все", ChatFormatting.RED));
         put("spy.state_on_tag",
-                styled("[ON]", Formatting.GREEN),
-                styled("[ВКЛ]", Formatting.GREEN));
+                styled("[ON]", ChatFormatting.GREEN),
+                styled("[ВКЛ]", ChatFormatting.GREEN));
         put("spy.state_off_tag",
-                styled("[OFF]", Formatting.RED),
-                styled("[ВЫКЛ]", Formatting.RED));
+                styled("[OFF]", ChatFormatting.RED),
+                styled("[ВЫКЛ]", ChatFormatting.RED));
         put("spy.state_on",
-                styled("ON", Formatting.GREEN),
-                styled("ВКЛ", Formatting.GREEN));
+                styled("ON", ChatFormatting.GREEN),
+                styled("ВКЛ", ChatFormatting.GREEN));
         put("spy.state_off",
-                styled("OFF", Formatting.RED),
-                styled("ВЫКЛ", Formatting.RED));
+                styled("OFF", ChatFormatting.RED),
+                styled("ВЫКЛ", ChatFormatting.RED));
         put("spy.toggle_prefix",
-                styled("SocialSpy ", Formatting.GOLD),
-                styled("SocialSpy ", Formatting.GOLD));
+                styled("SocialSpy ", ChatFormatting.GOLD),
+                styled("SocialSpy ", ChatFormatting.GOLD));
 
         // ── Admin Panel ────────────────────────────────────────────────────
         put("panel.title",
@@ -360,8 +386,8 @@ public class Lang {
                 hex("Click to edit", COLOR_NORMAL),
                 hex("Нажмите для редактирования", COLOR_NORMAL));
         put("panel.saved",
-                styled(" (saved)", Formatting.DARK_GRAY),
-                styled(" (сохранено)", Formatting.DARK_GRAY));
+                styled(" (saved)", ChatFormatting.DARK_GRAY),
+                styled(" (сохранено)", ChatFormatting.DARK_GRAY));
         put("panel.field_not_boolean",
                 hex("This field is not a boolean.", COLOR_RED),
                 hex("Это поле не является переключателем.", COLOR_RED));
@@ -374,8 +400,8 @@ public class Lang {
 
         // ── Reload (/viaStyle reload) ────────────────────────────────────────
         put("reload.done",
-                styled("[viaStyle] All configurations reloaded.", Formatting.GREEN),
-                styled("[viaStyle] Все конфигурации перезагружены.", Formatting.GREEN));
+                styled("[viaStyle] All configurations reloaded.", ChatFormatting.GREEN),
+                styled("[viaStyle] Все конфигурации перезагружены.", ChatFormatting.GREEN));
 
         // ── AFK (raw strings — color applied from config) ────────────────────
         putRaw("afk.self_enabled", "You are now AFK.", "Теперь вы AFK.");
@@ -391,17 +417,17 @@ public class Lang {
 
         // ── NickColor ──────────────────────────────────────────────────────
         put("nickcolor.set",
-                styled("Set nick colour for ", Formatting.GREEN),
-                styled("Цвет ника установлен для ", Formatting.GREEN));
+                styled("Set nick colour for ", ChatFormatting.GREEN),
+                styled("Цвет ника установлен для ", ChatFormatting.GREEN));
         put("nickcolor.removed",
-                styled("Removed nick colour for ", Formatting.GREEN),
-                styled("Цвет ника убран для ", Formatting.GREEN));
+                styled("Removed nick colour for ", ChatFormatting.GREEN),
+                styled("Цвет ника убран для ", ChatFormatting.GREEN));
         put("nickcolor.reloaded",
-                styled("Nick colours reloaded.", Formatting.GREEN),
-                styled("Цвета ников перезагружены.", Formatting.GREEN));
+                styled("Nick colours reloaded.", ChatFormatting.GREEN),
+                styled("Цвета ников перезагружены.", ChatFormatting.GREEN));
         put("nickcolor.invalid_spec",
-                styled("Invalid colour spec.", Formatting.RED),
-                styled("Неверный формат цвета.", Formatting.RED));
+                styled("Invalid colour spec.", ChatFormatting.RED),
+                styled("Неверный формат цвета.", ChatFormatting.RED));
 
         // ── Panel field descriptions (shown in hover tooltips) ─────────────
         // CHAT page
@@ -710,13 +736,13 @@ public class Lang {
     //  API
     // ═══════════════════════════════════════════════════════════════════════
 
-    public static Text get(String key) {
-        Map<String, Text> messages = currentLang.equals("ru") ? ruMessages : enMessages;
-        Text defaultText = enMessages.getOrDefault(key, hex(key, COLOR_RED));
+    public static Component get(String key) {
+        Map<String, Component> messages = currentLang.equals("ru") ? ruMessages : enMessages;
+        Component defaultText = enMessages.getOrDefault(key, hex(key, COLOR_RED));
         return messages.getOrDefault(key, defaultText);
     }
 
-    public static MutableText getMutable(String key) {
+    public static MutableComponent getMutable(String key) {
         return get(key).copy();
     }
 
@@ -747,22 +773,22 @@ public class Lang {
     }
 
     /** Returns a colored {@code MutableText} from a raw string entry. */
-    public static MutableText getColored(String key, TextColor color) {
-        return Text.literal(getRaw(key)).styled(s -> s.withColor(color));
+    public static MutableComponent getColored(String key, TextColor color) {
+        return Component.literal(getRaw(key)).withStyle(s -> s.withColor(color));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Helpers
     // ═══════════════════════════════════════════════════════════════════════
 
-    private static void put(String key, Text en, Text ru) {
+    private static void put(String key, Component en, Component ru) {
         enMessages.put(key, en);
         ruMessages.put(key, ru);
     }
 
-        private static MutableText styled(String text, Formatting... formats) {
+        private static MutableComponent styled(String text, ChatFormatting... formats) {
                 TextColor color = COLOR_NORMAL;
-                for (Formatting fmt : formats) {
+                for (ChatFormatting fmt : formats) {
                         if (fmt == null) continue;
                         switch (fmt) {
                                 case RED, DARK_RED -> color = COLOR_RED;
@@ -777,12 +803,12 @@ public class Lang {
                         }
                 }
                 TextColor selectedColor = color;
-                return Text.literal(text).styled(s -> s.withColor(selectedColor));
+                return Component.literal(text).withStyle(s -> s.withColor(selectedColor));
     }
 
     /** Creates a MutableText with a hex TextColor (no bold). */
-    private static MutableText hex(String text, TextColor color) {
-                return Text.literal(text).styled(s -> s.withColor(color));
+    private static MutableComponent hex(String text, TextColor color) {
+                return Component.literal(text).withStyle(s -> s.withColor(color));
     }
 
     /** Public accessors for the palette — used by AdminPanelCommand. */

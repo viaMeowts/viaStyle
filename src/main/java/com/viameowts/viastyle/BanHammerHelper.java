@@ -1,8 +1,7 @@
 package com.viameowts.viastyle;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.server.network.ServerPlayerEntity;
-
+import net.minecraft.server.level.ServerPlayer;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.UUID;
@@ -103,10 +102,10 @@ public final class BanHammerHelper {
      * Returns {@code true} when the player has an active mute in BanHammer.
      * Returns {@code false} if BanHammer is absent, disabled, or the check fails.
      */
-    public static boolean isMuted(ServerPlayerEntity player) {
+    public static boolean isMuted(ServerPlayer player) {
         if (!isAvailable()) return false;
         try {
-            Object arg = needsGameProfile ? player.getGameProfile() : player.getUuid();
+            Object arg = needsGameProfile ? player.getGameProfile() : player.getUUID();
             Object result;
             if (extraArgs.length > 0) {
                 result = muteCheckMethod.invoke(null, arg, extraArgs[0]);
