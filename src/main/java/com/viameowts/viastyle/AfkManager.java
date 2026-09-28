@@ -1,9 +1,8 @@
 package com.viameowts.viastyle;
 
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.PlayerInput;
-
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Input;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -17,8 +16,8 @@ public final class AfkManager {
 
     private AfkManager() {}
 
-    public static void initPlayer(ServerPlayerEntity player) {
-        lastActivity.put(player.getUuid(), System.currentTimeMillis());
+    public static void initPlayer(ServerPlayer player) {
+        lastActivity.put(player.getUUID(), System.currentTimeMillis());
     }
 
     /**
@@ -26,18 +25,18 @@ public final class AfkManager {
      * Checks movement keys (WASD), jumping, and sneaking — external forces
      * like water pushing or knockback do NOT count as activity.
      */
-    private static boolean hasPlayerInput(ServerPlayerEntity player) {
-        PlayerInput input = player.getPlayerInput();
+    private static boolean hasPlayerInput(ServerPlayer player) {
+        Input input = player.getLastClientInput();
         return input.forward() || input.backward()
             || input.left() || input.right()
-            || input.jump() || input.sneak();
+            || input.jump() || input.shift();
     }
 
     public static void onActivity(UUID uuid) {
         lastActivity.put(uuid, System.currentTimeMillis());
         if (afkPlayers.remove(uuid)) {
-            ServerPlayerEntity player = PlaceholderHelper.getServer() != null
-                    ? PlaceholderHelper.getServer().getPlayerManager().getPlayer(uuid) : null;
+            ServerPlayer player = PlaceholderHelper.getServer() != null
+                    ? PlaceholderHelper.getServer().getPlayerList().getPlayer(uuid) : null;
             if (player != null) {
                 revertVisualChanges(player);
             }
@@ -55,8 +54,8 @@ public final class AfkManager {
         long now = System.currentTimeMillis();
         int timeoutMs = cfg.afkTimeout * 1000;
 
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            UUID uuid = player.getUuid();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            UUID uuid = player.getUUID();
 
             if (hasBypass(player)) continue;
 
@@ -88,16 +87,16 @@ public final class AfkManager {
 
     private static void cleanupDisconnected(MinecraftServer server) {
         lastActivity.keySet().removeIf(uuid ->
-                server.getPlayerManager().getPlayer(uuid) == null);
+                server.getPlayerList().getPlayer(uuid) == null);
         afkPlayers.removeIf(uuid ->
-                server.getPlayerManager().getPlayer(uuid) == null);
+                server.getPlayerList().getPlayer(uuid) == null);
     }
 
-    private static boolean hasBypass(ServerPlayerEntity player) {
+    private static boolean hasBypass(ServerPlayer player) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg == null) return true;
 
-        UUID uuid = player.getUuid();
+        UUID uuid = player.getUUID();
 
         Boolean direct = LuckPermsHelper.getDirectPermission(uuid, cfg.afkBypassPermission);
         if (direct != null) return direct;
@@ -119,8 +118,8 @@ public final class AfkManager {
         return false;
     }
 
-    public static boolean toggleAfk(ServerPlayerEntity player) {
-        UUID uuid = player.getUuid();
+    public static boolean toggleAfk(ServerPlayer player) {
+        UUID uuid = player.getUUID();
         if (afkPlayers.contains(uuid)) {
             onActivity(uuid);
             return false;
@@ -141,12 +140,12 @@ public final class AfkManager {
         afkPlayers.remove(uuid);
     }
 
-    private static void applyVisualChanges(ServerPlayerEntity player) {
+    private static void applyVisualChanges(ServerPlayer player) {
         TabListManager.updatePlayer(player);
         NametagManager.updatePlayer(player);
     }
 
-    private static void revertVisualChanges(ServerPlayerEntity player) {
+    private static void revertVisualChanges(ServerPlayer player) {
         TabListManager.updatePlayer(player);
         NametagManager.updatePlayer(player);
     }

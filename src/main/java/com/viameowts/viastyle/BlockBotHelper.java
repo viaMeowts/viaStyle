@@ -3,11 +3,10 @@ package com.viameowts.viastyle;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
+import net.minecraft.server.level.ServerPlayer;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -221,7 +220,7 @@ public final class BlockBotHelper {
      */
     private static void resolveActionResult() {
         for (String cls : new String[]{
-                "net.minecraft.util.ActionResult",
+                "net.minecraft.world.InteractionResult",
                 "net.minecraft.util.ActionResult"
         }) {
             try {
@@ -307,7 +306,7 @@ public final class BlockBotHelper {
                 for (Constructor<?> ctor : psCls.getConstructors()) {
                     Class<?>[] paramTypes = ctor.getParameterTypes();
                     if (paramTypes.length == 2
-                            && paramTypes[0].isAssignableFrom(ServerPlayerEntity.class)) {
+                            && paramTypes[0].isAssignableFrom(ServerPlayer.class)) {
                         playerSenderCtor = ctor;
                         // Second param should be the MessageType enum
                         Class<?> enumType = paramTypes[1];
@@ -737,7 +736,7 @@ public final class BlockBotHelper {
         String formatted = format
                 .replace("{message}", content)
                 .replace("{channel}", channel);
-        Text relayText = Text.literal(formatted).formatted(Formatting.AQUA);
+        Component relayText = Component.literal(formatted).withStyle(ChatFormatting.AQUA);
 
         // Capture finals for lambda
         final String finalContent = content;
@@ -745,7 +744,7 @@ public final class BlockBotHelper {
         // The relay handler fires on BlockBot/JDA's Discord thread — broadcast()
         // must run on the server thread to safely iterate the player list.
         server.execute(() -> {
-            server.getPlayerManager().broadcast(relayText, false);
+            server.getPlayerList().broadcastSystemMessage(relayText, false);
             // Ping any @MCPlayerName mentions found in the Discord message
             if (cfg.discordMentionPing) {
                 MentionHandler.processDiscordMentions(server, finalContent, null);
@@ -779,7 +778,7 @@ public final class BlockBotHelper {
      * @param message the raw message text
      * @param channel BlockBot channel name
      */
-    public static void relayToDiscord(ServerPlayerEntity player, String message, String channel) {
+    public static void relayToDiscord(ServerPlayer player, String message, String channel) {
         if (!isAvailable()) return;
 
         String resolvedChannel = (channel != null && !channel.isBlank()) ? channel : defaultChatChannel;
@@ -802,7 +801,7 @@ public final class BlockBotHelper {
                 try {
                     Object playerSender = playerSenderCtor.newInstance(player, messageTypeRegular);
                     Object invoker = chatEventInvokerMethod.invoke(chatEventObj);
-                    chatEventMessageMethod.invoke(invoker, playerSender, Text.literal(resolveDiscordMentions(message)));
+                    chatEventMessageMethod.invoke(invoker, playerSender, Component.literal(resolveDiscordMentions(message)));
                     viaStyle.LOGGER.debug("[viaStyle] ChatMessageEvent → default channel \"{}\" for <{}>.",
                             resolvedChannel, player.getName().getString());
                     return;
@@ -834,7 +833,7 @@ public final class BlockBotHelper {
                 Object invoker = chatEventInvokerMethod.invoke(chatEventObj);
                 // Prepend channel label so Discord readers can distinguish local from global
                 String labeledMessage = "[" + resolvedChannel + "] " + resolveDiscordMentions(message);
-                chatEventMessageMethod.invoke(invoker, playerSender, Text.literal(labeledMessage));
+                chatEventMessageMethod.invoke(invoker, playerSender, Component.literal(labeledMessage));
                 viaStyle.LOGGER.debug("[viaStyle] ChatMessageEvent fallback (labeled) → channel \"{}\" for <{}>.",
                         resolvedChannel, player.getName().getString());
             } catch (Throwable t) {

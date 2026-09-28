@@ -1,8 +1,8 @@
 package com.viameowts.viastyle.mixin;
 
 import com.viameowts.viastyle.viaStyle;
-import net.minecraft.server.PlayerManager;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.players.PlayerList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -14,15 +14,15 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * <p>The leave message is broadcast from {@code cleanUp()} in
  * {@code ServerPlayNetworkHandler}.</p>
  */
-@Mixin(net.minecraft.server.network.ServerPlayNetworkHandler.class)
+@Mixin(net.minecraft.server.network.ServerGamePacketListenerImpl.class)
 public abstract class ServerPlayLeaveMixin {
 
     @Redirect(
-            method = "cleanUp",
+            method = "removePlayerFromWorld",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/server/PlayerManager;broadcast(Lnet/minecraft/text/Text;Z)V")
+                    target = "Lnet/minecraft/server/players/PlayerList;broadcastSystemMessage(Lnet/minecraft/network/chat/Component;Z)V")
     )
-    private void viaStyle$suppressLeaveBroadcast(PlayerManager instance, Text message, boolean overlay) {
+    private void viaStyle$suppressLeaveBroadcast(PlayerList instance, Component message, boolean overlay) {
         // Suppress — viaStyle sends its own leave message from the DISCONNECT event.
         viaStyle.LOGGER.debug("[viaStyle] Suppressed vanilla leave broadcast: {}", message.getString());
     }

@@ -1,7 +1,7 @@
 package com.viameowts.viastyle;
 
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Abstraction over TextPlaceholderAPI so that the dependency is truly optional.
@@ -13,7 +13,7 @@ public interface PlaceholderProvider {
      * Replaces any {@code %namespace:key%} patterns found in {@code text}
      * with the values produced by TextPlaceholderAPI for the given player.
      */
-    Text parse(Text text, ServerPlayerEntity player);
+    Component parse(Component text, ServerPlayer player);
 
     /**
      * Full pipeline: parses Patbox Simplified Text Format tags
@@ -24,5 +24,5 @@ public interface PlaceholderProvider {
      * @param player player context for placeholder resolution (may be {@code null}
      *               — format tags are still applied, only placeholders are skipped)
      */
-    Text parseFormat(String input, ServerPlayerEntity player);
+    Component parseFormat(String input, ServerPlayer player);
 }

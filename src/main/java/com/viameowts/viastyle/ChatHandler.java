@@ -1,17 +1,16 @@
 package com.viameowts.viastyle;
 
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
-import net.minecraft.network.message.SignedMessage;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.PlayerChatMessage;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -39,15 +38,15 @@ public class ChatHandler {
         });
     }
 
-    private static void onChatMessage(SignedMessage message, ServerPlayerEntity sender,
-                                      net.minecraft.network.message.MessageType.Parameters params) {
-        String rawMessage = message.getContent().getString();
-        MinecraftServer server = sender.getEntityWorld().getServer();
+    private static void onChatMessage(PlayerChatMessage message, ServerPlayer sender,
+                                      net.minecraft.network.chat.ChatType.Bound params) {
+        String rawMessage = message.decoratedContent().getString();
+        MinecraftServer server = sender.level().getServer();
         if (server == null) return;
 
         // ── BanHammer mute check ───────────────────────────────────────────
         if (BanHammerHelper.isMuted(sender)) {
-            sender.sendMessage(Lang.get("chat.muted"), false);
+            sender.sendSystemMessage(Lang.get("chat.muted"));
             return;
         }
 
@@ -63,14 +62,14 @@ public class ChatHandler {
                     handleStaffMessage(server, sender, content);
                 }
             } else {
-                sender.sendMessage(Lang.get("chat.staff_no_permission"), false);
+                sender.sendSystemMessage(Lang.get("chat.staff_no_permission"));
             }
             return;
         }
 
         // ── Global / Local routing ─────────────────────────────────────────
         boolean hasGlobalPrefix = !globalTrigger.isEmpty() && rawMessage.startsWith(globalTrigger);
-        boolean prefersPrefixForGlobal = viaStyle.getPlayerPrefersPrefixForGlobal(sender.getUuid());
+        boolean prefersPrefixForGlobal = viaStyle.getPlayerPrefersPrefixForGlobal(sender.getUUID());
 
         boolean isEffectivelyGlobal;
         String messageContent;
@@ -92,7 +91,7 @@ public class ChatHandler {
         }
 
         // ── Reset AFK timer ────────────────────────────────────────────────
-        AfkManager.onActivity(sender.getUuid());
+        AfkManager.onActivity(sender.getUUID());
     }
 
     // ── Console logging helper ──────────────────────────────────────────────────
@@ -107,26 +106,26 @@ public class ChatHandler {
 
     // ── Staff permission / handler ─────────────────────────────────────────────
 
-    private static boolean hasStaffPermission(ServerPlayerEntity player) {
+    private static boolean hasStaffPermission(ServerPlayer player) {
         return LuckPermsHelper.checkPlayerPermission(player, "viastyle.staff", 2);
     }
 
     private static void handleStaffMessage(MinecraftServer server,
-                                           ServerPlayerEntity sender,
+                                           ServerPlayer sender,
                                            String content) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
 
-        Map<String, Text> tokens = buildTokens(cfg, sender, content,
+        Map<String, Component> tokens = buildTokens(cfg, sender, content,
                 cfg.staffPrefix, cfg.getStaffPrefixColor(),
                 cfg.getStaffNameColor(), cfg.getStaffMessageColor(), server);
 
-        MutableText assembled = parseTemplate(cfg.staffFormat, tokens);
-        Text finalMsg = PlaceholderHelper.process(assembled, sender);
+        MutableComponent assembled = parseTemplate(cfg.staffFormat, tokens);
+        Component finalMsg = PlaceholderHelper.process(assembled, sender);
 
         // Deliver only to players with staff permission (or OP) + the sender
-        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (hasStaffPermission(p)) {
-                p.sendMessage(finalMsg, false);
+                p.sendSystemMessage(finalMsg);
             }
         }
 
@@ -142,64 +141,64 @@ public class ChatHandler {
     // ── Component builders ─────────────────────────────────────────────────────
 
     /** Returns an empty Text when timestamps are disabled, otherwise a styled "[HH:mm] " component. */
-    private static Text buildTimestamp(ViaStyleConfig cfg) {
-        if (!cfg.showTimestamp) return Text.empty();
+    private static Component buildTimestamp(ViaStyleConfig cfg) {
+        if (!cfg.showTimestamp) return Component.empty();
         try {
             String time = LocalTime.now().format(DateTimeFormatter.ofPattern(cfg.timestampFormat));
             return colored("[" + time + "] ", cfg.getTimestampColor());
         } catch (DateTimeParseException | IllegalArgumentException e) {
             viaStyle.LOGGER.warn("[viaStyle] Invalid timestampFormat '{}': {}", cfg.timestampFormat, e.getMessage());
-            return Text.empty();
+            return Component.empty();
         }
     }
 
     /** Wraps a string literal with a single {@link TextColor}. */
-    private static MutableText colored(String str, TextColor color) {
-        return Text.literal(str).styled(s -> s.withColor(color));
+    private static MutableComponent colored(String str, TextColor color) {
+        return Component.literal(str).withStyle(s -> s.withColor(color));
     }
 
     /**
-     * Parses a formatting string into a styled {@link MutableText}.
+     * Parses a formatting string into a styled {@link MutableComponent}.
      * Used for LuckPerms prefixes/suffixes and supports MiniMessage tags.
      */
-    private static MutableText parseLegacyColors(String input) {
-        if (input == null || input.isEmpty()) return Text.empty();
+    private static MutableComponent parseLegacyColors(String input) {
+        if (input == null || input.isEmpty()) return Component.empty();
         // Full Patbox format pipeline (falls back to built-in parser if PAPI absent).
         // Pass null as player — LP prefixes don't need per-player placeholder resolution.
-        return Text.empty().append(PlaceholderHelper.parseFormat(input, null));
+        return Component.empty().append(PlaceholderHelper.parseFormat(input, null));
     }
 
     // ── Format template engine ─────────────────────────────────────────────────
 
     /**
-     * Builds the final message {@link Text} from a format template string and a
+     * Builds the final message {@link Component} from a format template string and a
      * map of token values.
      *
      * <p>Template example: {@code "{timestamp}{prefix} {lp_prefix}{name}: {message}"}</p>
      *
      * <p>Any token not present in the map is kept as literal text in the output.</p>
      */
-    private static MutableText parseTemplate(String template, Map<String, Text> tokens) {
-        MutableText result = Text.empty();
+    private static MutableComponent parseTemplate(String template, Map<String, Component> tokens) {
+        MutableComponent result = Component.empty();
         Matcher m = TOKEN.matcher(template);
         int last = 0;
 
         while (m.find()) {
             if (m.start() > last) {
-                result.append(Text.literal(template.substring(last, m.start())));
+                result.append(Component.literal(template.substring(last, m.start())));
             }
             String key = m.group(1);
-            Text value = tokens.get(key);
+            Component value = tokens.get(key);
             if (value != null) {
                 result.append(value);
             } else {
                 // Unknown token — keep as literal
-                result.append(Text.literal(m.group(0)));
+                result.append(Component.literal(m.group(0)));
             }
             last = m.end();
         }
         if (last < template.length()) {
-            result.append(Text.literal(template.substring(last)));
+            result.append(Component.literal(template.substring(last)));
         }
         return result;
     }
@@ -207,23 +206,23 @@ public class ChatHandler {
     // ── Chat handlers ──────────────────────────────────────────────────────────
 
     private static void handleGlobalMessage(MinecraftServer server,
-                                            ServerPlayerEntity sender,
+                                            ServerPlayer sender,
                                             String messageContent) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
 
-        Map<String, Text> tokens = buildTokens(cfg, sender, messageContent,
+        Map<String, Component> tokens = buildTokens(cfg, sender, messageContent,
                 cfg.globalPrefix, cfg.getGlobalPrefixColor(),
                 cfg.getGlobalNameColor(), cfg.getGlobalMessageColor(), server);
 
-        MutableText assembled = parseTemplate(cfg.globalFormat, tokens);
-        Text finalMsg = PlaceholderHelper.process(assembled, sender);
+        MutableComponent assembled = parseTemplate(cfg.globalFormat, tokens);
+        Component finalMsg = PlaceholderHelper.process(assembled, sender);
 
-        for (ServerPlayerEntity recipient : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer recipient : server.getPlayerList().getPlayers()) {
             // Skip if recipient ignores sender
-            if (recipient != sender && IgnoreManager.isIgnoring(recipient.getUuid(), sender.getUuid())) {
+            if (recipient != sender && IgnoreManager.isIgnoring(recipient.getUUID(), sender.getUUID())) {
                 continue;
             }
-            recipient.sendMessage(finalMsg, false);
+            recipient.sendSystemMessage(finalMsg);
         }
 
         // @mentions
@@ -247,36 +246,36 @@ public class ChatHandler {
     }
 
     private static void handleLocalMessage(MinecraftServer server,
-                                           ServerPlayerEntity sender,
+                                           ServerPlayer sender,
                                            String messageContent) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         double radiusSquared = cfg.localChatRadius * cfg.localChatRadius;
 
-        Map<String, Text> tokens = buildTokens(cfg, sender, messageContent,
+        Map<String, Component> tokens = buildTokens(cfg, sender, messageContent,
                 cfg.localPrefix, cfg.getLocalPrefixColor(),
                 cfg.getLocalNameColor(), cfg.getLocalMessageColor(), server);
 
-        MutableText assembled = parseTemplate(cfg.localFormat, tokens);
-        Text finalMsg = PlaceholderHelper.process(assembled, sender);
+        MutableComponent assembled = parseTemplate(cfg.localFormat, tokens);
+        Component finalMsg = PlaceholderHelper.process(assembled, sender);
 
-        List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
-        List<ServerPlayerEntity> deliveredRecipients = new ArrayList<>();
-        ServerWorld senderWorld = sender.getEntityWorld();
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
+        List<ServerPlayer> deliveredRecipients = new ArrayList<>();
+        ServerLevel senderWorld = sender.level();
         int recipientCount = 0;
 
-        for (ServerPlayerEntity recipient : players) {
+        for (ServerPlayer recipient : players) {
             if (recipient == sender) {
-                recipient.sendMessage(finalMsg, false);
+                recipient.sendSystemMessage(finalMsg);
                 deliveredRecipients.add(recipient);
                 continue;
             }
             // Skip if recipient ignores sender
-            if (IgnoreManager.isIgnoring(recipient.getUuid(), sender.getUuid())) {
+            if (IgnoreManager.isIgnoring(recipient.getUUID(), sender.getUUID())) {
                 continue;
             }
-            if (recipient.getEntityWorld() == senderWorld
-                    && sender.squaredDistanceTo(recipient) <= radiusSquared) {
-                recipient.sendMessage(finalMsg, false);
+            if (recipient.level() == senderWorld
+                    && sender.distanceToSqr(recipient) <= radiusSquared) {
+                recipient.sendSystemMessage(finalMsg);
                 deliveredRecipients.add(recipient);
                 recipientCount++;
             }
@@ -286,7 +285,7 @@ public class ChatHandler {
         if (cfg.localNooneHeard && recipientCount == 0) {
             String hint = (cfg.localNooneHeardMessage != null && !cfg.localNooneHeardMessage.isBlank())
                     ? cfg.localNooneHeardMessage : "Nobody heard you.";
-            sender.sendMessage(Text.literal(hint).formatted(Formatting.GRAY, Formatting.ITALIC), false);
+            sender.sendSystemMessage(Component.literal(hint).withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
         }
 
         // @mentions
@@ -311,33 +310,33 @@ public class ChatHandler {
 
     // ── Shared token builder ───────────────────────────────────────────────────
 
-    private static Map<String, Text> buildTokens(ViaStyleConfig cfg,
-                                                  ServerPlayerEntity sender,
+    private static Map<String, Component> buildTokens(ViaStyleConfig cfg,
+                                                  ServerPlayer sender,
                                                   String messageContent,
                                                   String prefix,
                                                   TextColor prefixColor,
                                                   TextColor nameColor,
                                                   TextColor messageColor,
                                                   MinecraftServer server) {
-        Map<String, Text> tokens = new LinkedHashMap<>();
+        Map<String, Component> tokens = new LinkedHashMap<>();
         tokens.put("timestamp",  buildTimestamp(cfg));
         tokens.put("prefix",     colored(prefix, prefixColor));
-        tokens.put("lp_prefix",  parseLegacyColors(LuckPermsHelper.getPrefix(sender.getUuid())));
-        tokens.put("lp_suffix",  parseLegacyColors(LuckPermsHelper.getSuffix(sender.getUuid())));
+        tokens.put("lp_prefix",  parseLegacyColors(LuckPermsHelper.getPrefix(sender.getUUID())));
+        tokens.put("lp_suffix",  parseLegacyColors(LuckPermsHelper.getSuffix(sender.getUUID())));
 
         // Nick colour from permission / file overrides the section default
-        MutableText nickColored = viaStyle.CONFIG.nickColorInChat
+        MutableComponent nickColored = viaStyle.CONFIG.nickColorInChat
                 ? NickColorManager.getColoredName(sender) : null;
-        MutableText nameText = nickColored != null
+        MutableComponent nameText = nickColored != null
                 ? nickColored
                 : colored(sender.getName().getString(), nameColor);
 
         // Click name → suggest /m <player>  |  Hover → tooltip
         String playerName = sender.getName().getString();
-        nameText = nameText.styled(s -> s
+        nameText = nameText.withStyle(s -> s
                 .withClickEvent(new ClickEvent.SuggestCommand("/m " + playerName + " "))
                 .withHoverEvent(new HoverEvent.ShowText(
-                        Text.literal("/m " + playerName).formatted(Formatting.GRAY))));
+                        Component.literal("/m " + playerName).withStyle(ChatFormatting.GRAY))));
         tokens.put("name", nameText);
 
         ChatSharePlaceholders.ProcessedMessage processed =
@@ -356,7 +355,7 @@ public class ChatHandler {
      * received the message normally.
      */
     public static void relaySocialSpy(MinecraftServer server,
-                                       ServerPlayerEntity sender,
+                                       ServerPlayer sender,
                                        String content,
                                        SocialSpyManager.Channel channel,
                                        String channelLabel) {
@@ -376,30 +375,30 @@ public class ChatHandler {
                                         String content,
                                         SocialSpyManager.Channel channel,
                                         String channelLabel,
-                                        ServerPlayerEntity excludeSender) {
+                                        ServerPlayer excludeSender) {
         if (viaStyle.CONFIG == null) return;
 
         Set<java.util.UUID> spies = SocialSpyManager.getSpiesForChannel(channel);
         if (spies.isEmpty()) return;
 
-        Text spyMsg = Text.literal("[Spy/" + channelLabel + "] ").formatted(Formatting.DARK_GRAY)
-                .append(Text.literal(senderName).formatted(Formatting.GRAY))
-                .append(Text.literal(": ").formatted(Formatting.DARK_GRAY))
-                .append(Text.literal(content).formatted(Formatting.GRAY));
+        Component spyMsg = Component.literal("[Spy/" + channelLabel + "] ").withStyle(ChatFormatting.DARK_GRAY)
+                .append(Component.literal(senderName).withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(": ").withStyle(ChatFormatting.DARK_GRAY))
+                .append(Component.literal(content).withStyle(ChatFormatting.GRAY));
 
-        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (p == excludeSender) continue;
-            if (spies.contains(p.getUuid())) {
+            if (spies.contains(p.getUUID())) {
                 // Re-check permission — it may have been revoked since spy was enabled
                 boolean hasSpyPerm = LuckPermsHelper.checkPlayerPermission(p, "viastyle.socialspy", 2);
                 if (!hasSpyPerm) {
                     // Auto-disable spy for this player so the state stays clean
-                    SocialSpyManager.disableAll(p.getUuid());
+                    SocialSpyManager.disableAll(p.getUUID());
                     continue;
                 }
                 // For staff channel, don't duplicate if they already see it as staff
                 if (channel == SocialSpyManager.Channel.STAFF && hasStaffPermission(p)) continue;
-                p.sendMessage(spyMsg, false);
+                p.sendSystemMessage(spyMsg);
             }
         }
     }

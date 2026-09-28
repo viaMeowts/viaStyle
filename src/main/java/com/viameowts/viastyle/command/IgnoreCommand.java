@@ -6,16 +6,15 @@ import com.mojang.brigadier.context.CommandContext;
 import com.viameowts.viastyle.IgnoreManager;
 import com.viameowts.viastyle.Lang;
 import com.viameowts.viastyle.LuckPermsHelper;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * <pre>
@@ -26,18 +25,18 @@ import java.util.UUID;
  */
 public class IgnoreCommand {
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher,
-                                CommandRegistryAccess registryAccess,
-                                CommandManager.RegistrationEnvironment environment) {
-        dispatcher.register(CommandManager.literal("ignore")
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
+                                CommandBuildContext registryAccess,
+                                Commands.CommandSelection environment) {
+        dispatcher.register(Commands.literal("ignore")
             .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore"))
-                .then(CommandManager.literal("list")
+                .then(Commands.literal("list")
                         .executes(IgnoreCommand::listIgnored))
-                .then(CommandManager.argument("player", StringArgumentType.word())
+                .then(Commands.argument("player", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
                             String remaining = builder.getRemainingLowerCase();
-                            for (ServerPlayerEntity p : ctx.getSource().getServer()
-                                    .getPlayerManager().getPlayerList()) {
+                            for (ServerPlayer p : ctx.getSource().getServer()
+                                    .getPlayerList().getPlayers()) {
                                 String name = p.getName().getString();
                                 if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
                                     builder.suggest(name);
@@ -48,16 +47,16 @@ public class IgnoreCommand {
                         .executes(IgnoreCommand::toggleIgnore))
         );
 
-        dispatcher.register(CommandManager.literal("unignore")
+        dispatcher.register(Commands.literal("unignore")
             .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.ignore"))
-                .then(CommandManager.argument("player", StringArgumentType.word())
+                .then(Commands.argument("player", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
                             String remaining = builder.getRemainingLowerCase();
-                            if (ctx.getSource().getEntity() instanceof ServerPlayerEntity p) {
-                                Set<UUID> ignored = IgnoreManager.getIgnored(p.getUuid());
-                                for (ServerPlayerEntity online : ctx.getSource().getServer()
-                                        .getPlayerManager().getPlayerList()) {
-                                    if (ignored.contains(online.getUuid())) {
+                            if (ctx.getSource().getEntity() instanceof ServerPlayer p) {
+                                Set<UUID> ignored = IgnoreManager.getIgnored(p.getUUID());
+                                for (ServerPlayer online : ctx.getSource().getServer()
+                                        .getPlayerList().getPlayers()) {
+                                    if (ignored.contains(online.getUUID())) {
                                         String name = online.getName().getString();
                                         if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
                                             builder.suggest(name);
@@ -71,100 +70,100 @@ public class IgnoreCommand {
         );
     }
 
-    private static int toggleIgnore(CommandContext<ServerCommandSource> ctx) {
-        if (!(ctx.getSource().getEntity() instanceof ServerPlayerEntity sender)) {
-            ctx.getSource().sendError(Lang.get("error.player_only"));
+    private static int toggleIgnore(CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.getSource().getEntity() instanceof ServerPlayer sender)) {
+            ctx.getSource().sendFailure(Lang.get("error.player_only"));
             return 0;
         }
         String targetName = StringArgumentType.getString(ctx, "player");
-        ServerPlayerEntity target = ctx.getSource().getServer()
-                .getPlayerManager().getPlayer(targetName);
+        ServerPlayer target = ctx.getSource().getServer()
+                .getPlayerList().getPlayerByName(targetName);
         if (target == null) {
-            ctx.getSource().sendError(Lang.get("error.player_not_found"));
+            ctx.getSource().sendFailure(Lang.get("error.player_not_found"));
             return 0;
         }
         if (target == sender) {
-            ctx.getSource().sendError(Lang.get("ignore.self"));
+            ctx.getSource().sendFailure(Lang.get("ignore.self"));
             return 0;
         }
 
-        UUID senderUuid = sender.getUuid();
-        UUID targetUuid = target.getUuid();
+        UUID senderUuid = sender.getUUID();
+        UUID targetUuid = target.getUUID();
 
         if (IgnoreManager.isIgnoring(senderUuid, targetUuid)) {
             IgnoreManager.remove(senderUuid, targetUuid);
-            ctx.getSource().sendFeedback(
+            ctx.getSource().sendSuccess(
                     () -> Lang.getMutable("ignore.removed")
-                            .append(Text.literal(targetName).formatted(Formatting.WHITE))
-                            .append(Text.literal(".")),
+                            .append(Component.literal(targetName).withStyle(ChatFormatting.WHITE))
+                            .append(Component.literal(".")),
                     false);
         } else {
             IgnoreManager.add(senderUuid, targetUuid);
-            ctx.getSource().sendFeedback(
+            ctx.getSource().sendSuccess(
                     () -> Lang.getMutable("ignore.added")
-                            .append(Text.literal(targetName).formatted(Formatting.WHITE))
+                            .append(Component.literal(targetName).withStyle(ChatFormatting.WHITE))
                             .append(Lang.get("ignore.added_suffix")),
                     false);
         }
         return 1;
     }
 
-    private static int unignore(CommandContext<ServerCommandSource> ctx) {
-        if (!(ctx.getSource().getEntity() instanceof ServerPlayerEntity sender)) {
-            ctx.getSource().sendError(Lang.get("error.player_only"));
+    private static int unignore(CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.getSource().getEntity() instanceof ServerPlayer sender)) {
+            ctx.getSource().sendFailure(Lang.get("error.player_only"));
             return 0;
         }
         String targetName = StringArgumentType.getString(ctx, "player");
-        ServerPlayerEntity target = ctx.getSource().getServer()
-                .getPlayerManager().getPlayer(targetName);
+        ServerPlayer target = ctx.getSource().getServer()
+                .getPlayerList().getPlayerByName(targetName);
         if (target == null) {
-            ctx.getSource().sendError(Lang.get("error.player_not_found"));
+            ctx.getSource().sendFailure(Lang.get("error.player_not_found"));
             return 0;
         }
 
-        if (IgnoreManager.remove(sender.getUuid(), target.getUuid())) {
-            ctx.getSource().sendFeedback(
+        if (IgnoreManager.remove(sender.getUUID(), target.getUUID())) {
+            ctx.getSource().sendSuccess(
                     () -> Lang.getMutable("ignore.removed")
-                            .append(Text.literal(targetName).formatted(Formatting.WHITE))
-                            .append(Text.literal(".")),
+                            .append(Component.literal(targetName).withStyle(ChatFormatting.WHITE))
+                            .append(Component.literal(".")),
                     false);
         } else {
-            ctx.getSource().sendFeedback(
+            ctx.getSource().sendSuccess(
                     () -> Lang.getMutable("ignore.not_ignoring")
-                            .append(Text.literal(targetName).formatted(Formatting.WHITE))
-                            .append(Text.literal(".")),
+                            .append(Component.literal(targetName).withStyle(ChatFormatting.WHITE))
+                            .append(Component.literal(".")),
                     false);
         }
         return 1;
     }
 
-    private static int listIgnored(CommandContext<ServerCommandSource> ctx) {
-        if (!(ctx.getSource().getEntity() instanceof ServerPlayerEntity sender)) {
-            ctx.getSource().sendError(Lang.get("error.player_only"));
+    private static int listIgnored(CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.getSource().getEntity() instanceof ServerPlayer sender)) {
+            ctx.getSource().sendFailure(Lang.get("error.player_only"));
             return 0;
         }
 
-        Set<UUID> ignored = IgnoreManager.getIgnored(sender.getUuid());
+        Set<UUID> ignored = IgnoreManager.getIgnored(sender.getUUID());
         if (ignored.isEmpty()) {
-            ctx.getSource().sendFeedback(
+            ctx.getSource().sendSuccess(
                     () -> Lang.get("ignore.list_empty"),
                     false);
             return 1;
         }
 
-        ctx.getSource().sendFeedback(
+        ctx.getSource().sendSuccess(
                 () -> Lang.getMutable("ignore.list_header")
-                        .append(Text.literal(" (" + ignored.size() + "):").formatted(Formatting.YELLOW)),
+                        .append(Component.literal(" (" + ignored.size() + "):").withStyle(ChatFormatting.YELLOW)),
                 false);
 
         for (UUID uuid : ignored) {
-            ServerPlayerEntity p = ctx.getSource().getServer().getPlayerManager().getPlayer(uuid);
+            ServerPlayer p = ctx.getSource().getServer().getPlayerList().getPlayer(uuid);
             String name = p != null ? p.getName().getString() : uuid.toString();
             boolean online = p != null;
-            ctx.getSource().sendFeedback(
-                    () -> Text.literal("  - ").formatted(Formatting.GRAY)
-                            .append(Text.literal(name).formatted(online ? Formatting.WHITE : Formatting.DARK_GRAY))
-                            .append(online ? Text.empty() : Lang.get("ignore.offline")),
+            ctx.getSource().sendSuccess(
+                    () -> Component.literal("  - ").withStyle(ChatFormatting.GRAY)
+                            .append(Component.literal(name).withStyle(online ? ChatFormatting.WHITE : ChatFormatting.DARK_GRAY))
+                            .append(online ? Component.empty() : Lang.get("ignore.offline")),
                     false);
         }
         return 1;

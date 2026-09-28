@@ -10,23 +10,22 @@ import com.viameowts.viastyle.LuckPermsHelper;
 import com.viameowts.viastyle.PlaceholderHelper;
 import com.viameowts.viastyle.ViaStyleConfig;
 import com.viameowts.viastyle.viaStyle;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
-import net.minecraft.registry.Registries;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Identifier;
-
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 
 public final class BroadcastCommand {
 
@@ -38,10 +37,10 @@ public final class BroadcastCommand {
 
     private BroadcastCommand() {}
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher,
-                                CommandRegistryAccess registryAccess,
-                                CommandManager.RegistrationEnvironment environment) {
-        dispatcher.register(CommandManager.literal("bc")
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
+                                CommandBuildContext registryAccess,
+                                Commands.CommandSelection environment) {
+        dispatcher.register(Commands.literal("bc")
                 .requires(source -> {
                     ViaStyleConfig cfg = viaStyle.CONFIG;
                     if (cfg == null || !cfg.broadcastEnabled) return false;
@@ -50,22 +49,22 @@ public final class BroadcastCommand {
                     }
                     return LuckPermsHelper.checkPermission(source, cfg.broadcastPermission, 2);
                 })
-                .then(CommandManager.argument("message", StringArgumentType.greedyString())
+                .then(Commands.argument("message", StringArgumentType.greedyString())
                         .executes(BroadcastCommand::execute)));
     }
 
-    private static int execute(CommandContext<ServerCommandSource> context) {
+    private static int execute(CommandContext<CommandSourceStack> context) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg == null || !cfg.broadcastEnabled) {
             return 0;
         }
 
-        ServerCommandSource source = context.getSource();
+        CommandSourceStack source = context.getSource();
         String rawMessage = StringArgumentType.getString(context, "message");
 
-        if (source.getEntity() instanceof ServerPlayerEntity sender) {
+        if (source.getEntity() instanceof ServerPlayer sender) {
             if (BanHammerHelper.isMuted(sender)) {
-                sender.sendMessage(Lang.get("chat.muted"), false);
+                sender.sendSystemMessage(Lang.get("chat.muted"));
                 return 0;
             }
             if (!checkCooldown(sender, cfg, source)) {
@@ -73,19 +72,19 @@ public final class BroadcastCommand {
             }
         }
 
-        String senderName = source.getEntity() instanceof ServerPlayerEntity player
+        String senderName = source.getEntity() instanceof ServerPlayer player
                 ? player.getName().getString()
-            : safeString(cfg.broadcastConsoleSenderName, source.getName());
+            : safeString(cfg.broadcastConsoleSenderName, source.getTextName());
 
-        Text header = renderTemplate(cfg.broadcastHeaderFormat, senderName, rawMessage,
-                source.getEntity() instanceof ServerPlayerEntity sp ? sp : null);
-        Text line = renderTemplate(cfg.broadcastMessageFormat, senderName, rawMessage,
-            source.getEntity() instanceof ServerPlayerEntity sp ? sp : null);
+        Component header = renderTemplate(cfg.broadcastHeaderFormat, senderName, rawMessage,
+                source.getEntity() instanceof ServerPlayer sp ? sp : null);
+        Component line = renderTemplate(cfg.broadcastMessageFormat, senderName, rawMessage,
+            source.getEntity() instanceof ServerPlayer sp ? sp : null);
 
         int delivered = 0;
-        for (ServerPlayerEntity target : source.getServer().getPlayerManager().getPlayerList()) {
-            target.sendMessage(header, false);
-            target.sendMessage(line, false);
+        for (ServerPlayer target : source.getServer().getPlayerList().getPlayers()) {
+            target.sendSystemMessage(header);
+            target.sendSystemMessage(line);
             if (cfg.broadcastSoundEnabled) {
                 playConfiguredSound(target, cfg);
             }
@@ -94,9 +93,9 @@ public final class BroadcastCommand {
 
         if (cfg.broadcastSendFeedback) {
             final int deliveredCount = delivered;
-            source.sendFeedback(() -> {
-                MutableText feedback = Lang.getMutable("broadcast.feedback_prefix")
-                        .append(Text.literal(String.valueOf(deliveredCount)).styled(s -> s.withColor(Lang.colorGreen())))
+            source.sendSuccess(() -> {
+                MutableComponent feedback = Lang.getMutable("broadcast.feedback_prefix")
+                        .append(Component.literal(String.valueOf(deliveredCount)).withStyle(s -> s.withColor(Lang.colorGreen())))
                         .append(Lang.get("broadcast.feedback_suffix"));
                 return feedback;
             }, false);
@@ -116,32 +115,32 @@ public final class BroadcastCommand {
         lastBroadcastMillis.remove(uuid);
     }
 
-    private static boolean checkCooldown(ServerPlayerEntity sender, ViaStyleConfig cfg, ServerCommandSource source) {
+    private static boolean checkCooldown(ServerPlayer sender, ViaStyleConfig cfg, CommandSourceStack source) {
         int seconds = Math.max(0, cfg.broadcastCooldownSeconds);
         if (seconds <= 0) return true;
 
         long now = System.currentTimeMillis();
-        Long last = lastBroadcastMillis.get(sender.getUuid());
+        Long last = lastBroadcastMillis.get(sender.getUUID());
         if (last != null) {
             long leftMillis = seconds * 1000L - (now - last);
             if (leftMillis > 0) {
                 long leftSec = Math.max(1L, (leftMillis + 999L) / 1000L);
-                MutableText cooldown = Lang.getMutable("broadcast.cooldown")
-                        .append(Text.literal(String.valueOf(leftSec)).styled(s -> s.withColor(Lang.colorRed())))
+                MutableComponent cooldown = Lang.getMutable("broadcast.cooldown")
+                        .append(Component.literal(String.valueOf(leftSec)).withStyle(s -> s.withColor(Lang.colorRed())))
                         .append(Lang.get("broadcast.cooldown_suffix"));
-                source.sendError(cooldown);
+                source.sendFailure(cooldown);
                 return false;
             }
         }
 
-        lastBroadcastMillis.put(sender.getUuid(), now);
+        lastBroadcastMillis.put(sender.getUUID(), now);
         return true;
     }
 
-    private static Text renderTemplate(String template,
+    private static Component renderTemplate(String template,
                                        String senderName,
                                        String rawMessage,
-                                       ServerPlayerEntity contextPlayer) {
+                                       ServerPlayer contextPlayer) {
         String safeTemplate = template == null || template.isBlank() ? "{message}" : template;
         String prepared = applyTokens(safeTemplate,
                 "sender", senderName,
@@ -171,15 +170,15 @@ public final class BroadcastCommand {
         return value;
     }
 
-    private static void playConfiguredSound(ServerPlayerEntity target, ViaStyleConfig cfg) {
+    private static void playConfiguredSound(ServerPlayer target, ViaStyleConfig cfg) {
         RegistryEntryOrNull sound = resolveSound(cfg.broadcastSoundId);
         if (sound == null) return;
 
         float volume = (float) Math.max(0.0, cfg.broadcastSoundVolume);
         float pitch = (float) Math.max(0.01, cfg.broadcastSoundPitch);
 
-        target.networkHandler.sendPacket(new PlaySoundS2CPacket(
-                sound.entry(), SoundCategory.MASTER,
+        target.connection.send(new ClientboundSoundPacket(
+                sound.entry(), SoundSource.MASTER,
                 target.getX(), target.getY(), target.getZ(),
                 volume, pitch, target.getRandom().nextLong()));
     }
@@ -189,12 +188,12 @@ public final class BroadcastCommand {
                 ? Identifier.tryParse("minecraft:block.note_block.bell")
                 : Identifier.tryParse(id);
         if (identifier == null) {
-            identifier = Identifier.ofVanilla("block.note_block.bell");
+            identifier = Identifier.withDefaultNamespace("block.note_block.bell");
         }
-        return Registries.SOUND_EVENT.getEntry(identifier)
+        return BuiltInRegistries.SOUND_EVENT.get(identifier)
                 .map(RegistryEntryOrNull::new)
                 .orElse(null);
     }
 
-    private record RegistryEntryOrNull(net.minecraft.registry.entry.RegistryEntry.Reference<SoundEvent> entry) {}
+    private record RegistryEntryOrNull(net.minecraft.core.Holder.Reference<SoundEvent> entry) {}
 }

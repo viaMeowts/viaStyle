@@ -1,24 +1,23 @@
 package com.viameowts.viastyle;
 
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.EnderChestInventory;
-import net.minecraft.inventory.SimpleInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.screen.GenericContainerScreenHandler;
-import net.minecraft.screen.ScreenHandlerType;
-import net.minecraft.screen.SimpleNamedScreenHandlerFactory;
-import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.core.Holder;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.inventory.PlayerEnderChestContainer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -35,33 +34,33 @@ public final class ChatSharePlaceholders {
 
     private ChatSharePlaceholders() {}
 
-    public record ProcessedMessage(Text component, String plainText) {}
+    public record ProcessedMessage(Component component, String plainText) {}
 
-    private record Replacement(Text component, String plainText) {}
+    private record Replacement(Component component, String plainText) {}
 
     private record SharedView(
             String id,
             String type,
             String ownerName,
-            SimpleInventory inventory,
+            SimpleContainer inventory,
             int rows,
             long expiresAtMillis
     ) {}
 
     public static ProcessedMessage processMessage(String message,
-                                                  ServerPlayerEntity sender,
+                                                  ServerPlayer sender,
                                                   MinecraftServer server,
                                                   TextColor baseColor) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         boolean useMiniMessage = canUseMiniMessage(sender, cfg);
         if (cfg == null || !cfg.chatPlaceholdersEnabled || message == null || message.isEmpty()) {
-            Text plain = MentionHandler.highlightMentions(message == null ? "" : message, baseColor, server, sender, useMiniMessage);
+            Component plain = MentionHandler.highlightMentions(message == null ? "" : message, baseColor, server, sender, useMiniMessage);
             return new ProcessedMessage(plain, message == null ? "" : message);
         }
 
         Matcher matcher = TOKEN_PATTERN.matcher(message);
         if (!matcher.find()) {
-            Text plain = MentionHandler.highlightMentions(message, baseColor, server, sender, useMiniMessage);
+            Component plain = MentionHandler.highlightMentions(message, baseColor, server, sender, useMiniMessage);
             return new ProcessedMessage(plain, message);
         }
 
@@ -71,15 +70,15 @@ public final class ChatSharePlaceholders {
 
         long now = System.currentTimeMillis();
         int cooldownSeconds = Math.max(0, cfg.chatPlaceholderCooldownSeconds);
-        Long lastUse = lastUseMillis.get(sender.getUuid());
+        Long lastUse = lastUseMillis.get(sender.getUUID());
         if (cooldownSeconds > 0 && lastUse != null) {
             long delta = now - lastUse;
             long cooldownMillis = cooldownSeconds * 1000L;
             if (delta < cooldownMillis) {
                 long left = Math.max(1L, (cooldownMillis - delta + 999L) / 1000L);
-                sender.sendMessage(Lang.getMutable("chat.placeholder.cooldown")
-                        .append(Text.literal(String.valueOf(left))), false);
-                Text plain = MentionHandler.highlightMentions(message, baseColor, server, sender, useMiniMessage);
+                sender.sendSystemMessage(Lang.getMutable("chat.placeholder.cooldown")
+                        .append(Component.literal(String.valueOf(left))));
+                Component plain = MentionHandler.highlightMentions(message, baseColor, server, sender, useMiniMessage);
                 return new ProcessedMessage(plain, message);
             }
         }
@@ -87,7 +86,7 @@ public final class ChatSharePlaceholders {
         int limit = cfg.chatPlaceholderMaxPerMessage <= 0
                 ? Integer.MAX_VALUE : cfg.chatPlaceholderMaxPerMessage;
 
-        MutableText out = Text.empty();
+        MutableComponent out = Component.empty();
         StringBuilder plainOut = new StringBuilder();
         int cursor = 0;
         int used = 0;
@@ -114,7 +113,7 @@ public final class ChatSharePlaceholders {
             if (!hasTokenPermission(sender, token, cfg)) {
                 appendLiteral(out, plainOut, tokenRaw, baseColor);
                 if (!warnedNoPermission) {
-                    sender.sendMessage(Lang.get("chat.placeholder.no_permission"), false);
+                    sender.sendSystemMessage(Lang.get("chat.placeholder.no_permission"));
                     warnedNoPermission = true;
                 }
                 cursor = matcher.end();
@@ -150,14 +149,14 @@ public final class ChatSharePlaceholders {
         }
 
         if (replacedAny && cooldownSeconds > 0 && tokenCount > 0) {
-            lastUseMillis.put(sender.getUuid(), now);
+            lastUseMillis.put(sender.getUUID(), now);
         }
 
         pruneExpiredViews(now);
         return new ProcessedMessage(out, plainOut.toString());
     }
 
-    public static boolean openSharedView(ServerPlayerEntity viewer, String id) {
+    public static boolean openSharedView(ServerPlayer viewer, String id) {
         if (id == null || id.isBlank()) return false;
         SharedView view = sharedViews.get(id);
         if (view == null) return false;
@@ -168,22 +167,22 @@ public final class ChatSharePlaceholders {
             return false;
         }
 
-        ScreenHandlerType<?> type = switch (view.rows()) {
-            case 1 -> ScreenHandlerType.GENERIC_9X1;
-            case 2 -> ScreenHandlerType.GENERIC_9X2;
-            case 3 -> ScreenHandlerType.GENERIC_9X3;
-            case 4 -> ScreenHandlerType.GENERIC_9X4;
-            case 5 -> ScreenHandlerType.GENERIC_9X5;
-            default -> ScreenHandlerType.GENERIC_9X6;
+        MenuType<?> type = switch (view.rows()) {
+            case 1 -> MenuType.GENERIC_9x1;
+            case 2 -> MenuType.GENERIC_9x2;
+            case 3 -> MenuType.GENERIC_9x3;
+            case 4 -> MenuType.GENERIC_9x4;
+            case 5 -> MenuType.GENERIC_9x5;
+            default -> MenuType.GENERIC_9x6;
         };
 
-        viewer.openHandledScreen(new SimpleNamedScreenHandlerFactory((syncId, playerInventory, player) ->
+        viewer.openMenu(new SimpleMenuProvider((syncId, playerInventory, player) ->
                 new ReadOnlyContainer(type, syncId, playerInventory, view.inventory(), view.rows()),
                 buildViewTitle(view, viewer)));
         return true;
     }
 
-    private static Text buildViewTitle(SharedView view, ServerPlayerEntity viewer) {
+    private static Component buildViewTitle(SharedView view, ServerPlayer viewer) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         String template;
         if ("ec".equals(view.type())) {
@@ -194,32 +193,32 @@ public final class ChatSharePlaceholders {
         String prepared = template
                 .replace("{player}", view.ownerName())
                 .replace("{id}", view.id());
-        return Text.literal(stripColorFormatting(prepared));
+        return Component.literal(stripColorFormatting(prepared));
     }
 
-    private static Replacement buildItemReplacement(ServerPlayerEntity sender, ViaStyleConfig cfg) {
+    private static Replacement buildItemReplacement(ServerPlayer sender, ViaStyleConfig cfg) {
         if (!cfg.chatPlaceholderItemEnabled) return null;
 
-        ItemStack stack = sender.getMainHandStack();
+        ItemStack stack = sender.getMainHandItem();
 
         if (stack.isEmpty()) {
             if (cfg.chatPlaceholderDenyIfNoItem) {
-                sender.sendMessage(Lang.get("chat.placeholder.no_item"), false);
+                sender.sendSystemMessage(Lang.get("chat.placeholder.no_item"));
                 return null;
             }
-            Text empty = Text.literal("[Empty Hand]").styled(s -> s.withColor(TextColor.fromRgb(0xD9D0D5)));
+            Component empty = Component.literal("[Empty Hand]").withStyle(s -> s.withColor(TextColor.fromRgb(0xD9D0D5)));
             return new Replacement(empty, "Empty Hand");
         }
 
-        SimpleInventory inv = new SimpleInventory(9);
+        SimpleContainer inv = new SimpleContainer(9);
         ItemStack filler = createFiller();
         for (int i = 0; i < 9; i++) {
-            inv.setStack(i, filler.copy());
+            inv.setItem(i, filler.copy());
         }
-        inv.setStack(4, stack.copy());
+        inv.setItem(4, stack.copy());
 
         String id = storeSnapshot(
-                stack.getName().copy(),
+                stack.getHoverName().copy(),
                 inv,
                 1,
                 "item",
@@ -227,15 +226,15 @@ public final class ChatSharePlaceholders {
                 cfg);
 
         int count = stack.getCount();
-        String plainName = stack.getName().getString();
+        String plainName = stack.getHoverName().getString();
         String plainLabel = count > 1 ? plainName + " x" + count : plainName;
 
-        MutableText component = Text.literal("[")
-                .append(stack.getName().copy())
-                .append(count > 1 ? Text.literal(" x" + count) : Text.empty())
-                .append(Text.literal("]"))
-                .styled(s -> s
-                        .withHoverEvent(new HoverEvent.ShowItem(stack))
+        MutableComponent component = Component.literal("[")
+                .append(stack.getHoverName().copy())
+                .append(count > 1 ? Component.literal(" x" + count) : Component.empty())
+                .append(Component.literal("]"))
+                .withStyle(s -> s
+                        .withHoverEvent(new HoverEvent.ShowItem(net.minecraft.world.item.ItemStackTemplate.fromNonEmptyStack(stack)))
                         .withClickEvent(new ClickEvent.RunCommand("/viastyle_view " + id)));
         return new Replacement(component, plainLabel);
     }
@@ -248,15 +247,15 @@ public final class ChatSharePlaceholders {
         return noMiniTags.replaceAll("(?i)&[0-9A-FK-OR]", "");
     }
 
-    private static Replacement buildPosReplacement(ServerPlayerEntity sender, ViaStyleConfig cfg) {
+    private static Replacement buildPosReplacement(ServerPlayer sender, ViaStyleConfig cfg) {
         if (!cfg.chatPlaceholderPosEnabled) return null;
 
         int x = sender.getBlockX();
         int y = sender.getBlockY();
         int z = sender.getBlockZ();
-        String world = sender.getEntityWorld().getRegistryKey().getValue().toString();
-        RegistryEntry<net.minecraft.world.biome.Biome> biomeEntry = sender.getEntityWorld().getBiome(sender.getBlockPos());
-        String biome = biomeEntry.getKey().map(key -> key.getValue().toString()).orElse("unknown");
+        String world = sender.level().dimension().identifier().toString();
+        Holder<net.minecraft.world.level.biome.Biome> biomeEntry = sender.level().getBiome(sender.blockPosition());
+        String biome = biomeEntry.unwrapKey().map(key -> key.identifier().toString()).orElse("unknown");
 
         String prepared = cfg.chatPlaceholderPosFormat
                 .replace("{x}", String.valueOf(x))
@@ -265,7 +264,7 @@ public final class ChatSharePlaceholders {
                 .replace("{world}", world)
                 .replace("{biome}", biome);
 
-        MutableText component = PlaceholderHelper.parseFormat(prepared, sender).copy();
+        MutableComponent component = PlaceholderHelper.parseFormat(prepared, sender).copy();
 
         if (cfg.chatPlaceholderPosHover != null && !cfg.chatPlaceholderPosHover.isBlank()) {
             String hoverPrepared = cfg.chatPlaceholderPosHover
@@ -274,10 +273,10 @@ public final class ChatSharePlaceholders {
                     .replace("{z}", String.valueOf(z))
                     .replace("{world}", world)
                     .replace("{biome}", biome);
-            Text hoverText = Text.literal(stripColorFormatting(hoverPrepared)
+            Component hoverText = Component.literal(stripColorFormatting(hoverPrepared)
                 .replace("<newline>", "\n")
                 .replace("<br>", "\n"));
-            component = component.styled(s -> s.withHoverEvent(new HoverEvent.ShowText(hoverText)));
+            component = component.withStyle(s -> s.withHoverEvent(new HoverEvent.ShowText(hoverText)));
         }
 
         if (cfg.chatPlaceholderPosClickSuggest != null && !cfg.chatPlaceholderPosClickSuggest.isBlank()) {
@@ -287,19 +286,19 @@ public final class ChatSharePlaceholders {
                     .replace("{z}", String.valueOf(z))
                     .replace("{world}", world)
                     .replace("{biome}", biome);
-            component = component.styled(s -> s.withClickEvent(new ClickEvent.SuggestCommand(command)));
+            component = component.withStyle(s -> s.withClickEvent(new ClickEvent.SuggestCommand(command)));
         }
 
         return new Replacement(component, x + " " + y + " " + z);
     }
 
-    private static Replacement buildInventoryReplacement(ServerPlayerEntity sender,
+    private static Replacement buildInventoryReplacement(ServerPlayer sender,
                                                          ViaStyleConfig cfg,
                                                          boolean enderChest) {
         return enderChest ? buildEnderReplacement(sender, cfg) : buildInvReplacement(sender, cfg);
     }
 
-    private static boolean hasTokenPermission(ServerPlayerEntity sender, String token, ViaStyleConfig cfg) {
+    private static boolean hasTokenPermission(ServerPlayer sender, String token, ViaStyleConfig cfg) {
         String node = switch (token) {
             case "item" -> cfg.chatPlaceholderItemPermission;
             case "pos" -> cfg.chatPlaceholderPosPermission;
@@ -311,7 +310,7 @@ public final class ChatSharePlaceholders {
         return LuckPermsHelper.checkPlayerPermission(sender, node, 2);
     }
 
-    private static boolean canUseMiniMessage(ServerPlayerEntity sender, ViaStyleConfig cfg) {
+    private static boolean canUseMiniMessage(ServerPlayer sender, ViaStyleConfig cfg) {
         if (cfg == null || sender == null) return false;
         if (!cfg.chatMiniMessageEnabled) return false;
         if (!cfg.chatMiniMessageRequirePermission) return true;
@@ -321,37 +320,37 @@ public final class ChatSharePlaceholders {
         return LuckPermsHelper.checkPlayerPermission(sender, node, 2);
     }
 
-    private static void appendLiteral(MutableText out,
+    private static void appendLiteral(MutableComponent out,
                                       StringBuilder plainOut,
                                       String tokenRaw,
                                       TextColor baseColor) {
-        out.append(Text.literal(tokenRaw).styled(s -> s.withColor(baseColor)));
+        out.append(Component.literal(tokenRaw).withStyle(s -> s.withColor(baseColor)));
         plainOut.append(tokenRaw);
     }
 
-    private static Replacement buildInvReplacement(ServerPlayerEntity sender, ViaStyleConfig cfg) {
+    private static Replacement buildInvReplacement(ServerPlayer sender, ViaStyleConfig cfg) {
         if (!cfg.chatPlaceholderInvEnabled) return null;
 
-        PlayerInventory pInv = sender.getInventory();
-        SimpleInventory view = new SimpleInventory(45);
+        Inventory pInv = sender.getInventory();
+        SimpleContainer view = new SimpleContainer(45);
         ItemStack filler = createFiller();
 
-        view.setStack(0, pInv.getStack(39).copy());
-        view.setStack(1, pInv.getStack(38).copy());
-        view.setStack(2, pInv.getStack(37).copy());
-        view.setStack(3, pInv.getStack(36).copy());
-        view.setStack(4, filler.copy());
-        view.setStack(5, sender.getOffHandStack().copy());
+        view.setItem(0, pInv.getItem(39).copy());
+        view.setItem(1, pInv.getItem(38).copy());
+        view.setItem(2, pInv.getItem(37).copy());
+        view.setItem(3, pInv.getItem(36).copy());
+        view.setItem(4, filler.copy());
+        view.setItem(5, sender.getOffhandItem().copy());
         for (int i = 6; i < 9; i++) {
-            view.setStack(i, filler.copy());
+            view.setItem(i, filler.copy());
         }
 
         for (int i = 0; i < 36; i++) {
-            view.setStack(9 + i, pInv.getStack(i).copy());
+            view.setItem(9 + i, pInv.getItem(i).copy());
         }
 
         String id = storeSnapshot(
-            Text.literal(sender.getName().getString() + " — Inventory").styled(s -> s.withColor(TextColor.fromRgb(0xFFC64C))),
+            Component.literal(sender.getName().getString() + " — Inventory").withStyle(s -> s.withColor(TextColor.fromRgb(0xFFC64C))),
                 view,
                 5,
                 "inv",
@@ -362,27 +361,27 @@ public final class ChatSharePlaceholders {
             ? "[inventory]"
             : cfg.chatPlaceholderInvFormat;
         String invPrepared = invTemplate.replace("{player}", sender.getName().getString());
-        MutableText label = PlaceholderHelper.parseFormat(invPrepared, sender).copy();
+        MutableComponent label = PlaceholderHelper.parseFormat(invPrepared, sender).copy();
         String hover = "ru".equalsIgnoreCase(cfg.defaultLanguage)
             ? "Нажмите, чтобы открыть инвентарь"
             : "Click to view inventory";
-        label = label.styled(s -> s
-            .withHoverEvent(new HoverEvent.ShowText(Text.literal(hover).styled(c -> c.withColor(TextColor.fromRgb(0xD9D0D5)))))
+        label = label.withStyle(s -> s
+            .withHoverEvent(new HoverEvent.ShowText(Component.literal(hover).withStyle(c -> c.withColor(TextColor.fromRgb(0xD9D0D5)))))
             .withClickEvent(new ClickEvent.RunCommand("/viastyle_view " + id)));
         return new Replacement(label, stripColorFormatting(invPrepared));
     }
 
-    private static Replacement buildEnderReplacement(ServerPlayerEntity sender, ViaStyleConfig cfg) {
+    private static Replacement buildEnderReplacement(ServerPlayer sender, ViaStyleConfig cfg) {
         if (!cfg.chatPlaceholderEcEnabled) return null;
 
-        EnderChestInventory ender = sender.getEnderChestInventory();
-        SimpleInventory view = new SimpleInventory(27);
-        for (int i = 0; i < ender.size() && i < 27; i++) {
-            view.setStack(i, ender.getStack(i).copy());
+        PlayerEnderChestContainer ender = sender.getEnderChestInventory();
+        SimpleContainer view = new SimpleContainer(27);
+        for (int i = 0; i < ender.getContainerSize() && i < 27; i++) {
+            view.setItem(i, ender.getItem(i).copy());
         }
 
         String id = storeSnapshot(
-            Text.literal(sender.getName().getString() + " — Ender Chest").styled(s -> s.withColor(TextColor.fromRgb(0xC8A2C8))),
+            Component.literal(sender.getName().getString() + " — Ender Chest").withStyle(s -> s.withColor(TextColor.fromRgb(0xC8A2C8))),
                 view,
                 3,
                 "ec",
@@ -393,18 +392,18 @@ public final class ChatSharePlaceholders {
             ? "[enderchest]"
             : cfg.chatPlaceholderEcFormat;
         String ecPrepared = ecTemplate.replace("{player}", sender.getName().getString());
-        MutableText label = PlaceholderHelper.parseFormat(ecPrepared, sender).copy();
+        MutableComponent label = PlaceholderHelper.parseFormat(ecPrepared, sender).copy();
         String hover = "ru".equalsIgnoreCase(cfg.defaultLanguage)
             ? "Нажмите, чтобы открыть эндер-сундук"
             : "Click to view ender chest";
-        label = label.styled(s -> s
-            .withHoverEvent(new HoverEvent.ShowText(Text.literal(hover).styled(c -> c.withColor(TextColor.fromRgb(0xD9D0D5)))))
+        label = label.withStyle(s -> s
+            .withHoverEvent(new HoverEvent.ShowText(Component.literal(hover).withStyle(c -> c.withColor(TextColor.fromRgb(0xD9D0D5)))))
             .withClickEvent(new ClickEvent.RunCommand("/viastyle_view " + id)));
         return new Replacement(label, stripColorFormatting(ecPrepared));
     }
 
-    private static String storeSnapshot(Text title,
-                                        SimpleInventory inventory,
+    private static String storeSnapshot(Component title,
+                                        SimpleContainer inventory,
                                         int rows,
                                         String type,
                                         String ownerName,
@@ -425,8 +424,8 @@ public final class ChatSharePlaceholders {
     }
 
     private static ItemStack createFiller() {
-        ItemStack pane = new ItemStack(Items.GRAY_STAINED_GLASS_PANE);
-        pane.set(net.minecraft.component.DataComponentTypes.CUSTOM_NAME, Text.literal(" "));
+        ItemStack pane = new ItemStack(Items.STAINED_GLASS_PANE.gray());
+        pane.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, Component.literal(" "));
         return pane;
     }
 
@@ -434,21 +433,21 @@ public final class ChatSharePlaceholders {
         sharedViews.entrySet().removeIf(entry -> entry.getValue().expiresAtMillis() < nowMillis);
     }
 
-    private static final class ReadOnlyContainer extends GenericContainerScreenHandler {
-        private ReadOnlyContainer(ScreenHandlerType<?> type,
+    private static final class ReadOnlyContainer extends ChestMenu {
+        private ReadOnlyContainer(MenuType<?> type,
                                   int syncId,
-                                  PlayerInventory playerInventory,
-                                  SimpleInventory inventory,
+                                  Inventory playerInventory,
+                                  SimpleContainer inventory,
                                   int rows) {
             super(type, syncId, playerInventory, inventory, rows);
         }
 
         @Override
-        public void onSlotClick(int slotIndex, int button, SlotActionType actionType, PlayerEntity player) {
+        public void clicked(int slotIndex, int button, ContainerInput actionType, Player player) {
         }
 
         @Override
-        public ItemStack quickMove(PlayerEntity player, int slot) {
+        public ItemStack quickMoveStack(Player player, int slot) {
             return ItemStack.EMPTY;
         }
     }

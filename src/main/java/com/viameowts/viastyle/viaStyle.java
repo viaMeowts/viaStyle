@@ -6,9 +6,9 @@ import com.viameowts.viapanel.api.ViaPanelApi;
 import com.viameowts.viapanel.api.ViaPanelProviders;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,7 +74,7 @@ public class viaStyle implements ModInitializer {
     private static void registerPanel() {
         ViaPanelApi.register(ViaPanelProviders
                 .builder("viastyle", "viaStyle", CONFIG)
-                .panelTitle(Text.literal("viaStyle Admin Panel"))
+                .panelTitle(Component.literal("viaStyle Admin Panel"))
                 .permission(source -> LuckPermsHelper.checkPermission(source, "viastyle.panel", 2))
                 .onFieldUpdated((fieldName, source) -> {
                     if (CONFIG == null) return;
@@ -89,8 +89,8 @@ public class viaStyle implements ModInitializer {
 
                     if (needsVisualRefresh(fieldName)) {
                         var server = source.getServer();
-                        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                            NickColorManager.invalidate(player.getUuid());
+                        for (net.minecraft.server.level.ServerPlayer player : server.getPlayerList().getPlayers()) {
+                            NickColorManager.invalidate(player.getUUID());
                         }
                         TabListManager.updateAll(server);
                         NametagManager.updateAll(server);
@@ -133,7 +133,7 @@ public class viaStyle implements ModInitializer {
                 || fieldName.contains("afk");
     }
 
-    private static void handleJoinLeaveOverrideField(String fieldName, ServerCommandSource source) {
+    private static void handleJoinLeaveOverrideField(String fieldName, CommandSourceStack source) {
         if (CONFIG == null) return;
 
         switch (fieldName) {
@@ -186,7 +186,7 @@ public class viaStyle implements ModInitializer {
         }
     }
 
-    private static UUID resolvePlayerTargetUuid(ServerCommandSource source, String target) {
+    private static UUID resolvePlayerTargetUuid(CommandSourceStack source, String target) {
         String value = normalizePanelField(target);
         if (value == null) return null;
 
@@ -195,13 +195,13 @@ public class viaStyle implements ModInitializer {
         } catch (IllegalArgumentException ignored) {
         }
 
-        for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
+        for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
             if (player.getName().getString().equalsIgnoreCase(value)) {
-                return player.getUuid();
+                return player.getUUID();
             }
         }
 
-        source.sendError(Lang.get("joinleave.admin.player_not_found"));
+        source.sendFailure(Lang.get("joinleave.admin.player_not_found"));
         return null;
     }
 

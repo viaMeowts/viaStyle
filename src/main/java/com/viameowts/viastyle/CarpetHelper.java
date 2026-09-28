@@ -1,8 +1,7 @@
 package com.viameowts.viastyle;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.server.network.ServerPlayerEntity;
-
+import net.minecraft.server.level.ServerPlayer;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -87,7 +86,7 @@ public final class CarpetHelper {
      * <p>If Carpet is not installed or the check fails, returns {@code false}
      * (meaning viaStyle will send its normal header/footer).</p>
      */
-    public static boolean hasActiveHud(ServerPlayerEntity player) {
+    public static boolean hasActiveHud(ServerPlayer player) {
         if (!available || player == null) return false;
 
         try {
@@ -110,8 +109,8 @@ public final class CarpetHelper {
             // Iterate if the map is small enough
             if (map.size() <= 100) {
                 for (Object key : map.keySet()) {
-                    if (key instanceof net.minecraft.entity.player.PlayerEntity pe) {
-                        if (pe.getUuid().equals(player.getUuid())) return true;
+                    if (key instanceof net.minecraft.world.entity.player.Player pe) {
+                        if (pe.getUUID().equals(player.getUUID())) return true;
                     }
                 }
             }

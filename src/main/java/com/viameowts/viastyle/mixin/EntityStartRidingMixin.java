@@ -1,7 +1,7 @@
 package com.viameowts.viastyle.mixin;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -22,14 +22,14 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public abstract class EntityStartRidingMixin {
 
     @Redirect(
-            method = "startRiding(Lnet/minecraft/entity/Entity;ZZ)Z",
+            method = "startRiding(Lnet/minecraft/world/entity/Entity;ZZ)Z",
             at = @At(value = "INVOKE",
-                     target = "Lnet/minecraft/entity/EntityType;isSaveable()Z"))
+                     target = "Lnet/minecraft/world/entity/EntityType;canSerialize()Z"))
     private boolean viaStyle$bypassSaveableForNametag(EntityType<?> type) {
         Entity self = (Entity) (Object) this;
-        if (self.getCommandTags().contains("viastyle_nametag")) {
+        if (self.entityTags().contains("viastyle_nametag")) {
             return true; // pretend vehicle type is saveable
         }
-        return type.isSaveable();
+        return type.canSerialize();
     }
 }

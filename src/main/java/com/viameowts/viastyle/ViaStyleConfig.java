@@ -4,9 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.viameowts.viapanel.api.ViaPanelField;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.TextColor;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
@@ -1106,9 +1105,9 @@ public class ViaStyleConfig {
         }
 
         try {
-            Formatting fmt = Formatting.valueOf(trimmed.toUpperCase());
-            if (!fmt.isModifier() && fmt.getColorValue() != null) {
-                return TextColor.fromFormatting(fmt);
+            ChatFormatting fmt = ChatFormatting.valueOf(trimmed.toUpperCase());
+            if (TextColor.fromLegacyFormat(fmt) != null) {
+                return TextColor.fromLegacyFormat(fmt);
             }
         } catch (IllegalArgumentException ignored) {}
 

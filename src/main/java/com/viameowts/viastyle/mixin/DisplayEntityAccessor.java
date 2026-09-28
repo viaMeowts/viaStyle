@@ -1,27 +1,27 @@
 package com.viameowts.viastyle.mixin;
 
-import net.minecraft.entity.data.TrackedData;
-import net.minecraft.entity.decoration.DisplayEntity;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.world.entity.Display;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * Accessor mixin for {@link DisplayEntity} private members.
+ * Accessor mixin for {@link Display} private members.
  * Used by the "display" nametag mode to configure TextDisplayEntity properties.
  */
-@Mixin(DisplayEntity.class)
+@Mixin(Display.class)
 public interface DisplayEntityAccessor {
 
-    @Invoker("setBillboardMode")
-    void invokeSetBillboardMode(DisplayEntity.BillboardMode mode);
+    @Invoker("setBillboardConstraints")
+    void invokeSetBillboardMode(Display.BillboardConstraints mode);
 
-    @Invoker("setTeleportDuration")
+    @Invoker("setPosRotInterpolationDuration")
     void invokeSetTeleportDuration(int ticks);
 
-    @Accessor("TRANSLATION")
-    static TrackedData<Vector3f> getTranslationField() {
+    @Accessor("DATA_TRANSLATION_ID")
+    static EntityDataAccessor<Vector3f> getTranslationField() {
         throw new AssertionError();
     }
 }

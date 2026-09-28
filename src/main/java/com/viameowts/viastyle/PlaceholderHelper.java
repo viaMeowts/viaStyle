@@ -1,8 +1,8 @@
 package com.viameowts.viastyle;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Optional bridge to TextPlaceholderAPI (placeholder-api mod).
@@ -76,7 +76,7 @@ public final class PlaceholderHelper {
      * for the specified player. Returns the text unchanged when PAPI is unavailable
      * or disabled in the config.
      */
-    public static Text process(Text text, ServerPlayerEntity player) {
+    public static Component process(Component text, ServerPlayer player) {
         if (!isAvailable()) return text;
         try {
             return provider.parse(text, player);
@@ -100,10 +100,10 @@ public final class PlaceholderHelper {
      * @param input  raw format string from config
      * @param player player context for placeholder resolution
      *               ({@code null} = format only, no placeholder resolution)
-     * @return styled {@link Text}
+     * @return styled {@link Component}
      */
-    public static Text parseFormat(String input, ServerPlayerEntity player) {
-        if (input == null || input.isEmpty()) return Text.empty();
+    public static Component parseFormat(String input, ServerPlayer player) {
+        if (input == null || input.isEmpty()) return Component.empty();
         if (isAvailable()) {
             try {
                 return provider.parseFormat(input, player);

@@ -1,15 +1,14 @@
 package com.viameowts.viastyle;
 
-import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
-import net.minecraft.registry.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundSource;
 import java.util.List;
 import java.util.Map;
 import java.util.Collection;
@@ -48,7 +47,7 @@ public final class MentionHandler {
      * @param message the raw message text
      */
     public static void processMentions(MinecraftServer server,
-                                       ServerPlayerEntity sender,
+                                       ServerPlayer sender,
                                        String message) {
         processMentions(server, sender, message, null);
     }
@@ -59,31 +58,31 @@ public final class MentionHandler {
      * can be notified (used for local chat radius delivery).
      */
     public static void processMentions(MinecraftServer server,
-                                       ServerPlayerEntity sender,
+                                       ServerPlayer sender,
                                        String message,
-                                       Collection<ServerPlayerEntity> allowedRecipients) {
+                                       Collection<ServerPlayer> allowedRecipients) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg == null || !cfg.mentionsEnabled) return;
 
         Matcher matcher = MENTION_PATTERN.matcher(message);
-        List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
         Set<UUID> allowed = null;
         if (allowedRecipients != null) {
             allowed = ConcurrentHashMap.newKeySet();
-            for (ServerPlayerEntity recipient : allowedRecipients) {
-                allowed.add(recipient.getUuid());
+            for (ServerPlayer recipient : allowedRecipients) {
+                allowed.add(recipient.getUUID());
             }
         }
 
         while (matcher.find()) {
             String mentionedName = matcher.group(1);
-            for (ServerPlayerEntity target : players) {
+            for (ServerPlayer target : players) {
                 if (target.getName().getString().equalsIgnoreCase(mentionedName)) {
-                    if (allowed != null && !allowed.contains(target.getUuid())) break;
+                    if (allowed != null && !allowed.contains(target.getUUID())) break;
                     // Skip if sender cannot see the vanished target
                     if (!VanishHelper.canSeePlayer(target, sender)) break;
                     // Stamp dedup cache first so GAME_MESSAGE scanner won't double-ping
-                    recentPings.put(target.getUuid(), System.currentTimeMillis());
+                    recentPings.put(target.getUUID(), System.currentTimeMillis());
                     notifyMention(target, sender);
                     break;
                 }
@@ -95,15 +94,15 @@ public final class MentionHandler {
      * Returns a styled version of the message with @mentions highlighted.
      * Should be applied to the {message} token before assembly.
      */
-    public static Text highlightMentions(String message, TextColor baseColor,
+    public static Component highlightMentions(String message, TextColor baseColor,
                                          MinecraftServer server,
-                                         ServerPlayerEntity sender) {
+                                         ServerPlayer sender) {
         return highlightMentions(message, baseColor, server, sender, false);
     }
 
-    public static Text highlightMentions(String message, TextColor baseColor,
+    public static Component highlightMentions(String message, TextColor baseColor,
                                          MinecraftServer server,
-                                         ServerPlayerEntity sender,
+                                         ServerPlayer sender,
                                          boolean useMiniMessage) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg == null || !cfg.mentionsEnabled) {
@@ -112,14 +111,14 @@ public final class MentionHandler {
 
         TextColor mentionColor = cfg.getMentionColor();
         Matcher matcher = MENTION_PATTERN.matcher(message);
-        MutableText result = Text.empty();
+        MutableComponent result = Component.empty();
         int last = 0;
 
         while (matcher.find()) {
             // Check if the mentioned name matches an online player visible to the sender
             String mentionedName = matcher.group(1);
             boolean isValidMention = false;
-            for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
                 if (p.getName().getString().equalsIgnoreCase(mentionedName)
                         && VanishHelper.canSeePlayer(p, sender)) {
                     isValidMention = true;
@@ -132,8 +131,8 @@ public final class MentionHandler {
                     String segment = message.substring(last, matcher.start());
                     result.append(parseMiniOrPlain(segment, baseColor, useMiniMessage));
                 }
-                result.append(Text.literal(matcher.group())
-                    .styled(s -> s.withColor(mentionColor)));
+                result.append(Component.literal(matcher.group())
+                    .withStyle(s -> s.withColor(mentionColor)));
                 last = matcher.end();
             }
         }
@@ -148,7 +147,7 @@ public final class MentionHandler {
                 : result;
     }
 
-    private static Text parseMiniOrPlain(String text, TextColor baseColor, boolean useMiniMessage) {
+    private static Component parseMiniOrPlain(String text, TextColor baseColor, boolean useMiniMessage) {
         if (useMiniMessage) {
             try {
                 if (ChatMiniMessageParser.containsTags(text)) {
@@ -158,7 +157,7 @@ public final class MentionHandler {
                 viaStyle.LOGGER.debug("[viaStyle] MiniMessage parse error: {}", t.getMessage());
             }
         }
-        return Text.literal(text).styled(s -> s.withColor(baseColor));
+        return Component.literal(text).withStyle(s -> s.withColor(baseColor));
     }
 
     /**
@@ -179,16 +178,16 @@ public final class MentionHandler {
 
         long now = System.currentTimeMillis();
         Matcher matcher = MENTION_PATTERN.matcher(rawMessage);
-        List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
 
         while (matcher.find()) {
             String mentionedName = matcher.group(1);
-            for (ServerPlayerEntity target : players) {
+            for (ServerPlayer target : players) {
                 if (target.getName().getString().equalsIgnoreCase(mentionedName)) {
                     // Dedup: skip if already pinged within the last 2 seconds
-                    Long last = recentPings.get(target.getUuid());
+                    Long last = recentPings.get(target.getUUID());
                     if (last != null && now - last < DEDUP_WINDOW_MS) break;
-                    recentPings.put(target.getUuid(), now);
+                    recentPings.put(target.getUUID(), now);
                     notifyMentionFromDiscord(target, discordSender);
                     break;
                 }
@@ -203,42 +202,40 @@ public final class MentionHandler {
      * @param target      the player to notify
      * @param senderName  Discord display name of the sender (may be {@code null})
      */
-    private static void notifyMentionFromDiscord(ServerPlayerEntity target, String senderName) {
+    private static void notifyMentionFromDiscord(ServerPlayer target, String senderName) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg == null) return;
 
         if (cfg.mentionSound) {
-            Registries.SOUND_EVENT.getEntry(Identifier.ofVanilla("entity.experience_orb.pickup"))
-                    .ifPresent(entry -> target.networkHandler.sendPacket(new PlaySoundS2CPacket(
-                            entry, SoundCategory.PLAYERS,
+            BuiltInRegistries.SOUND_EVENT.get(Identifier.withDefaultNamespace("entity.experience_orb.pickup"))
+                    .ifPresent(entry -> target.connection.send(new ClientboundSoundPacket(
+                            entry, SoundSource.PLAYERS,
                             target.getX(), target.getY(), target.getZ(),
                             1.0f, 1.0f, target.getRandom().nextLong())));
         }
 
         String from = (senderName != null && !senderName.isBlank()) ? senderName : "Discord";
-        target.sendMessage(
+        target.sendOverlayMessage(
                 Lang.getMutable("mention.notify")
-                .append(Text.literal(from).styled(s -> s.withColor(TextColor.fromRgb(0xFCDE9D))))
-                .append(Text.literal(" (Discord)").styled(s -> s.withColor(TextColor.fromRgb(0xB0C4DE))))
-                .append(Text.literal("!").styled(s -> s.withColor(TextColor.fromRgb(0xFF5555)))),
-                true); // actionBar = true
+                .append(Component.literal(from).withStyle(s -> s.withColor(TextColor.fromRgb(0xFCDE9D))))
+                .append(Component.literal(" (Discord)").withStyle(s -> s.withColor(TextColor.fromRgb(0xB0C4DE))))
+                .append(Component.literal("!").withStyle(s -> s.withColor(TextColor.fromRgb(0xFF5555)))));
     }
 
-    private static void notifyMention(ServerPlayerEntity target, ServerPlayerEntity sender) {
+    private static void notifyMention(ServerPlayer target, ServerPlayer sender) {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg != null && cfg.mentionSound) {
-            Registries.SOUND_EVENT.getEntry(Identifier.ofVanilla("entity.experience_orb.pickup"))
-                    .ifPresent(entry -> target.networkHandler.sendPacket(new PlaySoundS2CPacket(
-                            entry, SoundCategory.PLAYERS,
+            BuiltInRegistries.SOUND_EVENT.get(Identifier.withDefaultNamespace("entity.experience_orb.pickup"))
+                    .ifPresent(entry -> target.connection.send(new ClientboundSoundPacket(
+                            entry, SoundSource.PLAYERS,
                             target.getX(), target.getY(), target.getZ(),
                             1.0f, 1.0f, target.getRandom().nextLong())));
         }
 
         // Action bar notification
-        target.sendMessage(
+        target.sendOverlayMessage(
                 Lang.getMutable("mention.notify")
-                .append(Text.literal(sender.getName().getString()).styled(s -> s.withColor(TextColor.fromRgb(0xFCDE9D))))
-                .append(Text.literal("!").styled(s -> s.withColor(TextColor.fromRgb(0xFF5555)))),
-                true); // actionBar = true
+                .append(Component.literal(sender.getName().getString()).withStyle(s -> s.withColor(TextColor.fromRgb(0xFCDE9D))))
+                .append(Component.literal("!").withStyle(s -> s.withColor(TextColor.fromRgb(0xFF5555)))));
     }
 }

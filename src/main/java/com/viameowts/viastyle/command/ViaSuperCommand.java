@@ -8,21 +8,20 @@ import com.viameowts.viastyle.LuckPermsHelper;
 import com.viameowts.viastyle.PlaceholderHelper;
 import com.viameowts.viastyle.TickScheduler;
 import com.viameowts.viastyle.viaStyle;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.network.packet.s2c.play.ClearTitleS2CPacket;
-import net.minecraft.network.packet.s2c.play.SubtitleS2CPacket;
-import net.minecraft.network.packet.s2c.play.TitleFadeS2CPacket;
-import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.protocol.game.ClientboundClearTitlesPacket;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import java.util.List;
 
 /**
@@ -37,33 +36,33 @@ public class ViaSuperCommand {
     /** Ticks each word is shown (fade-in + stay + fade-out). */
     private static final int WORD_TICKS = 25;
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher,
-                                CommandRegistryAccess registryAccess,
-                                CommandManager.RegistrationEnvironment environment) {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
+                                CommandBuildContext registryAccess,
+                                Commands.CommandSelection environment) {
         dispatcher.register(
-                CommandManager.literal("viaSuper")
+                Commands.literal("viaSuper")
                         .requires(source -> LuckPermsHelper.checkPermission(source, "viastyle.command.viasuper", 2))
-                        .then(CommandManager.argument("message", StringArgumentType.greedyString())
+                        .then(Commands.argument("message", StringArgumentType.greedyString())
                                 .executes(ViaSuperCommand::execute))
         );
     }
 
-    private static int execute(CommandContext<ServerCommandSource> context) {
+    private static int execute(CommandContext<CommandSourceStack> context) {
         String message = StringArgumentType.getString(context, "message");
         String[] words = message.split("\\s+");
         if (words.length == 0) return 0;
 
         MinecraftServer server = context.getSource().getServer();
-        List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
         boolean wordSound = viaStyle.CONFIG != null && viaStyle.CONFIG.viaSuperWordSound;
 
         // Play ding sound immediately for all players
-        for (ServerPlayerEntity player : players) {
-            ((ServerWorld) player.getEntityWorld()).playSound(
+        for (ServerPlayer player : players) {
+            ((ServerLevel) player.level()).playSound(
                     null,
-                    player.getBlockPos(),
-                    SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
-                    SoundCategory.MASTER,
+                    player.blockPosition(),
+                    SoundEvents.EXPERIENCE_ORB_PICKUP,
+                    SoundSource.MASTER,
                     1.0f, 1.0f
             );
         }
@@ -77,35 +76,35 @@ public class ViaSuperCommand {
                 int subtitleLen = viaStyle.CONFIG != null ? viaStyle.CONFIG.viaSuperSubtitleLength : 7;
                 boolean isLong = word.length() >= subtitleLen;
 
-                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                     // Clear previous title
-                    player.networkHandler.sendPacket(new ClearTitleS2CPacket(false));
-                    player.networkHandler.sendPacket(new TitleFadeS2CPacket(3, 17, 5));
+                    player.connection.send(new ClientboundClearTitlesPacket(false));
+                    player.connection.send(new ClientboundSetTitlesAnimationPacket(3, 17, 5));
 
                     if (isLong) {
                         // Long word → show as subtitle (smaller font)
                         String subtitleFmt = viaStyle.CONFIG != null
                                 ? viaStyle.CONFIG.viaSuperSubtitleFormat : "<bold><dark_red>{word}";
-                        Text subtitleText = PlaceholderHelper.parseFormat(
+                        Component subtitleText = PlaceholderHelper.parseFormat(
                                 subtitleFmt.replace("{word}", word), null);
-                        player.networkHandler.sendPacket(new TitleS2CPacket(Text.empty()));
-                        player.networkHandler.sendPacket(new SubtitleS2CPacket(subtitleText));
+                        player.connection.send(new ClientboundSetTitleTextPacket(Component.empty()));
+                        player.connection.send(new ClientboundSetSubtitleTextPacket(subtitleText));
                     } else {
                         // Short word → show as title (big font)
                         String titleFmt = viaStyle.CONFIG != null
                                 ? viaStyle.CONFIG.viaSuperTitleFormat : "<bold><red>{word}";
-                        Text titleText = PlaceholderHelper.parseFormat(
+                        Component titleText = PlaceholderHelper.parseFormat(
                                 titleFmt.replace("{word}", word), null);
-                        player.networkHandler.sendPacket(new TitleS2CPacket(titleText));
+                        player.connection.send(new ClientboundSetTitleTextPacket(titleText));
                     }
 
                     // Per-word sound effect
                     if (wordSound) {
-                        ((ServerWorld) player.getEntityWorld()).playSound(
+                        ((ServerLevel) player.level()).playSound(
                                 null,
-                                player.getBlockPos(),
-                                SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
-                                SoundCategory.MASTER,
+                                player.blockPosition(),
+                                SoundEvents.EXPERIENCE_ORB_PICKUP,
+                                SoundSource.MASTER,
                                 1.0f, 1.0f
                         );
                     }
@@ -116,13 +115,13 @@ public class ViaSuperCommand {
         viaStyle.LOGGER.info("[viaStyle] /viaSuper sent \"{}\" ({} word(s)) to {} player(s).",
                 message, words.length, players.size());
 
-        MutableText feedback = Lang.getMutable("viasuper.sent_prefix")
-                .append(Text.literal(String.valueOf(words.length)).styled(s -> s.withColor(Lang.colorGreen())))
+        MutableComponent feedback = Lang.getMutable("viasuper.sent_prefix")
+                .append(Component.literal(String.valueOf(words.length)).withStyle(s -> s.withColor(Lang.colorGreen())))
                 .append(Lang.get("viasuper.sent_words_suffix"))
-                .append(Text.literal(String.valueOf(server.getPlayerManager().getPlayerList().size())).styled(s -> s.withColor(Lang.colorGreen())))
+                .append(Component.literal(String.valueOf(server.getPlayerList().getPlayers().size())).withStyle(s -> s.withColor(Lang.colorGreen())))
                 .append(Lang.get("viasuper.sent_players_suffix"));
 
-        context.getSource().sendFeedback(
+        context.getSource().sendSuccess(
                 () -> feedback,
                 true
         );

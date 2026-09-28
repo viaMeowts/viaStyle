@@ -1,13 +1,12 @@
 package com.viameowts.viastyle;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.command.permission.LeveledPermissionPredicate;
-import net.minecraft.command.permission.PermissionLevel;
-import net.minecraft.command.permission.PermissionPredicate;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.server.permissions.PermissionSet;
 import java.lang.reflect.Method;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -309,12 +308,12 @@ public final class LuckPermsHelper {
      * @param opLevel    fallback vanilla OP level (usually 2)
      * @return {@code true} if the source has the LP permission or meets the OP level
      */
-    public static boolean checkPermission(ServerCommandSource source, String permission, int opLevel) {
-        if (source.getEntity() instanceof ServerPlayerEntity player) {
-            Boolean direct = getDirectPermission(player.getUuid(), permission);
+    public static boolean checkPermission(CommandSourceStack source, String permission, int opLevel) {
+        if (source.getEntity() instanceof ServerPlayer player) {
+            Boolean direct = getDirectPermission(player.getUUID(), permission);
             if (direct != null) return direct;
-            if (hasPermissionDenied(player.getUuid(), permission)) return false;
-            if (hasPermission(player.getUuid(), permission)) return true;
+            if (hasPermissionDenied(player.getUUID(), permission)) return false;
+            if (hasPermission(player.getUUID(), permission)) return true;
         }
         return hasOpLevel(source, opLevel);
     }
@@ -323,19 +322,19 @@ public final class LuckPermsHelper {
      * Player-friendly permission check with LuckPerms-first logic and OP fallback.
      * Uses OP level 2 by default.
      */
-    public static boolean checkPlayerPermission(ServerCommandSource source, String permission) {
+    public static boolean checkPlayerPermission(CommandSourceStack source, String permission) {
         return checkPlayerPermission(source, permission, 2);
     }
 
     /**
      * Player-friendly permission check with LuckPerms-first logic and configurable OP fallback.
      */
-    public static boolean checkPlayerPermission(ServerCommandSource source, String permission, int opLevel) {
-        if (source.getEntity() instanceof ServerPlayerEntity player) {
-            Boolean direct = getDirectPermission(player.getUuid(), permission);
+    public static boolean checkPlayerPermission(CommandSourceStack source, String permission, int opLevel) {
+        if (source.getEntity() instanceof ServerPlayer player) {
+            Boolean direct = getDirectPermission(player.getUUID(), permission);
             if (direct != null) return direct;
-            if (hasPermissionDenied(player.getUuid(), permission)) return false;
-            if (hasPermission(player.getUuid(), permission)) return true;
+            if (hasPermissionDenied(player.getUUID(), permission)) return false;
+            if (hasPermission(player.getUUID(), permission)) return true;
             return hasOpLevel(source, opLevel);
         }
         return hasOpLevel(source, opLevel);
@@ -344,19 +343,19 @@ public final class LuckPermsHelper {
     /**
      * Player-side permission check with ordered precedence: player → group → default.
      */
-    public static boolean checkPlayerPermission(ServerPlayerEntity player, String permission, int opLevel) {
+    public static boolean checkPlayerPermission(ServerPlayer player, String permission, int opLevel) {
         if (player == null) return false;
-        Boolean direct = getDirectPermission(player.getUuid(), permission);
+        Boolean direct = getDirectPermission(player.getUUID(), permission);
         if (direct != null) return direct;
-        if (hasPermissionDenied(player.getUuid(), permission)) return false;
-        if (hasPermission(player.getUuid(), permission)) return true;
+        if (hasPermissionDenied(player.getUUID(), permission)) return false;
+        if (hasPermission(player.getUUID(), permission)) return true;
         return hasOpLevel(player, opLevel);
     }
 
     /**
      * Player-side permission check with OP level 2 fallback.
      */
-    public static boolean checkPlayerPermission(ServerPlayerEntity player, String permission) {
+    public static boolean checkPlayerPermission(ServerPlayer player, String permission) {
         return checkPlayerPermission(player, permission, 2);
     }
 
@@ -364,20 +363,20 @@ public final class LuckPermsHelper {
      * Minecraft 1.21.11 replaced {@code hasPermissionLevel(int)} with
      * {@code PermissionPredicate} / {@code LeveledPermissionPredicate}.
      */
-    public static boolean hasOpLevel(ServerCommandSource source, int opLevel) {
-        return source != null && hasOpLevel(source.getPermissions(), opLevel);
+    public static boolean hasOpLevel(CommandSourceStack source, int opLevel) {
+        return source != null && hasOpLevel(source.permissions(), opLevel);
     }
 
     /**
-     * Player-side variant of {@link #hasOpLevel(ServerCommandSource, int)}.
+     * Player-side variant of {@link #hasOpLevel(CommandSourceStack, int)}.
      */
-    public static boolean hasOpLevel(ServerPlayerEntity player, int opLevel) {
-        return player != null && hasOpLevel(player.getPermissions(), opLevel);
+    public static boolean hasOpLevel(ServerPlayer player, int opLevel) {
+        return player != null && hasOpLevel(player.permissions(), opLevel);
     }
 
-    private static boolean hasOpLevel(PermissionPredicate predicate, int opLevel) {
-        return predicate instanceof LeveledPermissionPredicate leveled
-                && leveled.getLevel().isAtLeast(PermissionLevel.fromLevel(opLevel));
+    private static boolean hasOpLevel(PermissionSet predicate, int opLevel) {
+        return predicate instanceof LevelBasedPermissionSet leveled
+                && leveled.level().isEqualOrHigherThan(PermissionLevel.byId(opLevel));
     }
 
     private static boolean isTristateFalse(Object tristate) {
@@ -633,11 +632,11 @@ public final class LuckPermsHelper {
                         // Re-fetch the player — the captured reference may be
                         // stale if the player disconnected between event fire
                         // and task execution.
-                        ServerPlayerEntity player = server.getPlayerManager()
+                        ServerPlayer player = server.getPlayerList()
                                 .getPlayer(uuid);
-                        if (player == null || player.isDisconnected()) return;
+                        if (player == null || player.hasDisconnected()) return;
                         // Extra safety: player must still be tracked by the server
-                        if (!server.getPlayerManager().getPlayerList().contains(player)) return;
+                        if (!server.getPlayerList().getPlayers().contains(player)) return;
 
                         viaStyle.LOGGER.debug(
                                 "[viaStyle] LP recalculate event for {} — refreshing",
