@@ -10,6 +10,7 @@ import com.viameowts.viastyle.command.PrivateMsgCommand;
 import com.viameowts.viastyle.command.PlaceholderViewCommand;
 import com.viameowts.viastyle.command.SocialSpyCommand;
 import com.viameowts.viastyle.command.PmSoundCommand;
+import com.viameowts.viastyle.command.RussianNames;
 import com.viameowts.viastyle.command.ViaSuperCommand;
 import com.viameowts.viastyle.network.Network;
 import net.fabricmc.api.DedicatedServerModInitializer;
@@ -54,6 +55,8 @@ public class viaStyleServer implements DedicatedServerModInitializer {
         CommandRegistrationCallback.EVENT.register(JoinLeaveCommand::register);
         CommandRegistrationCallback.EVENT.register(AfkCommand::register);
         CommandRegistrationCallback.EVENT.register(PmSoundCommand::register);
+        // last: the Russian names copy the nodes registered above
+        CommandRegistrationCallback.EVENT.register(RussianNames::register);
         viaStyle.LOGGER.info("Registered viaStyle commands.");
 
         // ── Tick-based tab list + nametag updates ──────────────────────────
