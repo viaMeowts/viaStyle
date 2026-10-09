@@ -79,7 +79,7 @@ public class ChatModeCommand {
                 .executes(ChatModeCommand::showCurrentMode)
                 .build();
         dispatcher.getRoot().addChild(chNode);
-        dispatcher.getRoot().addChild(Commands.literal("channel").redirect(chNode).build());
+        dispatcher.getRoot().addChild(Commands.literal("channel").requires(chNode.getRequirement()).redirect(chNode).build());
 
         dispatcher.register(Commands.literal("online")
                 .requires(src -> LuckPermsHelper.checkPlayerPermission(src, "viastyle.command.online", 0))
@@ -195,6 +195,7 @@ public class ChatModeCommand {
             viaStyle.CONFIG.defaultLanguage = langArg.toLowerCase();
             viaStyle.CONFIG.applyLocalizedPlaceholderDefaults(viaStyle.CONFIG.defaultLanguage);
             viaStyle.CONFIG.save();
+            com.viameowts.viastyle.MeridianaAudit.action(source.getTextName(), "/viaStyle lang: язык сервера теперь " + langArg);
 
             Component feedback = Lang.getMutable("command.lang.set")
                     .append(Component.literal(langArg).withStyle(ChatFormatting.AQUA));
@@ -239,6 +240,7 @@ public class ChatModeCommand {
             }
         }
 
+        com.viameowts.viastyle.MeridianaAudit.action(source.getTextName(), "/viaStyle reload: настройки перечитаны");
         source.sendSuccess(
                 () -> Lang.get("reload.done"),
                 true);

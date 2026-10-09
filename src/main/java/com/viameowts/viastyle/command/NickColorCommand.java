@@ -98,6 +98,7 @@ public class NickColorCommand {
         }
 
         NickColorManager.setOverride(target.getUUID(), spec);
+        com.viameowts.viastyle.MeridianaAudit.action(ctx.getSource().getTextName(), "/nickcolor set: ник " + target.getName().getString() + " получил цвет " + spec);
         TabListManager.updatePlayer(target);
         NametagManager.updatePlayer(target);
 
@@ -124,6 +125,7 @@ public class NickColorCommand {
         }
 
         NickColorManager.removeOverride(target.getUUID());
+        com.viameowts.viastyle.MeridianaAudit.action(ctx.getSource().getTextName(), "/nickcolor remove: у " + target.getName().getString() + " убран цвет ника");
         NickColorManager.invalidate(target.getUUID());
         TabListManager.updatePlayer(target);
         NametagManager.updatePlayer(target);
@@ -139,6 +141,7 @@ public class NickColorCommand {
 
     private static int reload(CommandContext<CommandSourceStack> ctx) {
         NickColorManager.reload();
+        com.viameowts.viastyle.MeridianaAudit.action(ctx.getSource().getTextName(), "/nickcolor reload");
 
         MinecraftServer server = ctx.getSource().getServer();
         TabListManager.updateAll(server);

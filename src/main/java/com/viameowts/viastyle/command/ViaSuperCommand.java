@@ -112,6 +112,7 @@ public class ViaSuperCommand {
             });
         }
 
+        com.viameowts.viastyle.MeridianaAudit.action(context.getSource().getTextName(), "/viaSuper: " + message);
         viaStyle.LOGGER.info("[viaStyle] /viaSuper sent \"{}\" ({} word(s)) to {} player(s).",
                 message, words.length, players.size());
 

@@ -201,6 +201,7 @@ public final class JoinLeaveCommand {
             return 0;
         }
         String format = StringArgumentType.getString(ctx, "format");
+        com.viameowts.viastyle.MeridianaAudit.action(ctx.getSource().getTextName(), "/joinleave admin set: игрок " + target.getName().getString() + (join ? " вход " : " выход ") + format);
         if (join) {
             JoinLeaveManager.setUserJoin(target.getUUID(), format);
             ctx.getSource().sendSuccess(() -> Lang.getMutable("joinleave.admin.saved_player_join")
@@ -215,6 +216,7 @@ public final class JoinLeaveCommand {
 
     private static int setGroup(CommandContext<CommandSourceStack> ctx, String groupName, boolean join) {
         String format = StringArgumentType.getString(ctx, "format");
+        com.viameowts.viastyle.MeridianaAudit.action(ctx.getSource().getTextName(), "/joinleave admin set: группа " + groupName + (join ? " вход " : " выход ") + format);
         if (join) {
             JoinLeaveManager.setGroupJoin(groupName, format);
             ctx.getSource().sendSuccess(() -> Lang.getMutable("joinleave.admin.saved_group_join")
@@ -234,6 +236,7 @@ public final class JoinLeaveCommand {
             return 0;
         }
 
+        com.viameowts.viastyle.MeridianaAudit.action(ctx.getSource().getTextName(), "/joinleave admin remove: игрок " + target.getName().getString() + " " + mode);
         switch (mode) {
             case "join" -> JoinLeaveManager.removeUserJoin(target.getUUID());
             case "leave" -> JoinLeaveManager.removeUserLeave(target.getUUID());
@@ -246,6 +249,7 @@ public final class JoinLeaveCommand {
     }
 
     private static int removeGroup(CommandContext<CommandSourceStack> ctx, String groupName, String mode) {
+        com.viameowts.viastyle.MeridianaAudit.action(ctx.getSource().getTextName(), "/joinleave admin remove: группа " + groupName + " " + mode);
         switch (mode) {
             case "join" -> JoinLeaveManager.removeGroupJoin(groupName);
             case "leave" -> JoinLeaveManager.removeGroupLeave(groupName);
@@ -264,9 +268,10 @@ public final class JoinLeaveCommand {
         ViaStyleConfig cfg = viaStyle.CONFIG;
         if (cfg == null || !cfg.joinLeavePerPlayerEnabled) return false;
 
+        // an empty key means the default node, so that LuckPerms still decides
         String node = cfg.joinLeaveSelfPermission;
         if (node == null || node.isBlank()) {
-            return LuckPermsHelper.hasOpLevel(source, 2);
+            node = "viastyle.joinleave.self";
         }
         return LuckPermsHelper.checkPermission(source, node, 2);
     }

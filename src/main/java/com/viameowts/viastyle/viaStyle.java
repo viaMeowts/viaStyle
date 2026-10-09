@@ -57,6 +57,16 @@ public class viaStyle implements ModInitializer {
         PlaceholderHelper.init();
         BanHammerHelper.init();
         LuckPermsHelper.init();
+        MeridianaAudit.check("luckperms", "Права: LuckPerms подключён к viaStyle", () -> {
+            boolean installed = net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("luckperms");
+            if (!installed) {
+                return java.util.List.of("WARN: LuckPerms не установлен: префиксы, группы и узлы viastyle.* не работают, решает только уровень оператора");
+            }
+            if (CONFIG != null && !CONFIG.useLuckPerms) {
+                return java.util.List.of("WARN: LuckPerms стоит, но в viaStyle.toml выключен ([integrations] luckperms = false): узлы viastyle.* игнорируются");
+            }
+            return java.util.List.of("LuckPerms подключён: узлы viastyle.* решает он");
+        });
         BlockBotHelper.init();
         VanishHelper.init();
         CarpetHelper.init();

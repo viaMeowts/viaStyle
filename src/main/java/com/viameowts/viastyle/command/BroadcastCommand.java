@@ -44,10 +44,10 @@ public final class BroadcastCommand {
                 .requires(source -> {
                     ViaStyleConfig cfg = viaStyle.CONFIG;
                     if (cfg == null || !cfg.broadcastEnabled) return false;
-                    if (cfg.broadcastPermission == null || cfg.broadcastPermission.isBlank()) {
-                        return LuckPermsHelper.hasOpLevel(source, 2);
-                    }
-                    return LuckPermsHelper.checkPermission(source, cfg.broadcastPermission, 2);
+                    // an empty key means the default node, so that LuckPerms still decides
+                    String node = cfg.broadcastPermission == null || cfg.broadcastPermission.isBlank()
+                            ? "viastyle.command.broadcast" : cfg.broadcastPermission;
+                    return LuckPermsHelper.checkPermission(source, node, 2);
                 })
                 .then(Commands.argument("message", StringArgumentType.greedyString())
                         .executes(BroadcastCommand::execute)));
@@ -108,6 +108,7 @@ public final class BroadcastCommand {
         if (!logLine.isBlank()) {
             viaStyle.LOGGER.info(logLine);
         }
+        com.viameowts.viastyle.MeridianaAudit.action(senderName, "/bc: " + rawMessage + " (получателей: " + delivered + ")");
         return delivered;
     }
 
