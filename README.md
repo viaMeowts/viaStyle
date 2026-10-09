@@ -47,6 +47,10 @@ Output: `build/libs/viastyle-<version>+mc26.3.jar` and `velocity/build/libs/vias
 
 ## Features
 
+### Russian command names
+
+Since 3.2.0 every player chat command also has a Russian name with the same permission node and arguments: `/лс` (`/msg`), `/ответ` (`/reply`), `/игнор` (`/ignore`), `/разыгнор` (`/unignore`), `/афк` (`/afk`), `/канал` (`/ch`), `/онлайн` (`/online`), `/цветник` (`/nickcolor`), `/звуклс` (`/msound`). They are full copies of the English nodes, not redirects, so `/афк` works without arguments. A name another mod already registered is left alone.
+
 ### Server network (Velocity)
 
 With several Fabric servers behind a Velocity proxy, viaStyle can act as one chat for the whole network.

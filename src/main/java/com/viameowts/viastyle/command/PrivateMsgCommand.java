@@ -137,7 +137,8 @@ public class PrivateMsgCommand {
     private static CommandNode<CommandSourceStack> buildAlias(
             String name,
             CommandNode<CommandSourceStack> target) {
-        return Commands.literal(name).redirect(target).build();
+        // the alias asks the same permission as the command it points to (a redirect alone would skip it)
+        return Commands.literal(name).requires(target.getRequirement()).redirect(target).build();
     }
 
     // ── /msg ──────────────────────────────────────────────────────────────────

@@ -119,6 +119,7 @@ public class SocialSpyCommand {
             return 0;
         }
         SocialSpyManager.enableAll(player.getUUID());
+        com.viameowts.viastyle.MeridianaAudit.action(player.getName().getString(), "/socialspy on: включил просмотр чужих личных сообщений");
         ctx.getSource().sendSuccess(() -> Lang.get("spy.enabled_all"), false);
         return 1;
     }
@@ -146,6 +147,7 @@ public class SocialSpyCommand {
         }
 
         boolean nowOn = SocialSpyManager.toggleChannel(player.getUUID(), ch);
+        com.viameowts.viastyle.MeridianaAudit.action(player.getName().getString(), "/socialspy " + chName + (nowOn ? " on" : " off"));
         ctx.getSource().sendSuccess(
             () -> Lang.getMutable("spy.toggle_prefix").withStyle(s -> s.withColor(COLOR_ACCENT))
                     .append(Component.literal(capitalize(chName)).withStyle(s -> s.withColor(COLOR_TEXT)))

@@ -52,6 +52,7 @@ public class AfkCommand {
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
         boolean nowAfk = AfkManager.toggleAfk(target);
         CommandSourceStack source = context.getSource();
+        com.viameowts.viastyle.MeridianaAudit.action(source.getTextName(), "/afk: игроку " + target.getName().getString() + (nowAfk ? " включён AFK" : " выключен AFK"));
         ViaStyleConfig cfg = viaStyle.CONFIG;
         TextColor color = parseHexColor(nowAfk ? cfg.afkEnabledColor : cfg.afkDisabledColor);
         TextColor nameColor = parseHexColor(nowAfk ? cfg.afkEnabledColor : cfg.afkDisabledColor);
@@ -110,6 +111,7 @@ public class AfkCommand {
                     .append(Component.literal(" to AFK exempt list.").withStyle(ChatFormatting.GREEN)), true);
         }
         cfg.save();
+        com.viameowts.viastyle.MeridianaAudit.event(source.getTextName(), "action", "WARN", "/afk bypass: список исключений AFK изменён для " + target.getName().getString());
         return 1;
     }
 }
