@@ -28,6 +28,14 @@ dependencies {
 	}
 	compileOnly viaPanelApiJar
 
+	// LuckPerms API: compile-only. Only LuckPermsBridge touches it and it is only loaded when
+	// the luckperms mod is present, so the jar still works without LuckPerms.
+	compileOnly "net.luckperms:api:5.4"
+
+	testImplementation platform("org.junit:junit-bom:5.11.4")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+
 	// TextPlaceholderAPI is an optional runtime-only dependency resolved via reflection.
 	// No compile-time dependency needed — loaded reflectively if present at runtime.
 
@@ -65,6 +73,10 @@ jar {
 	from("LICENSE") {
 		rename { "${it}_${base.archivesName.get()}"}
 	}
+}
+
+tasks.withType(Test).configureEach {
+	useJUnitPlatform()
 }
 
 artifacts {

@@ -22,9 +22,16 @@ import java.util.List;
  *   <li>{@code {max}} — max player count</li>
  *   <li>{@code {ping}} — player ping in ms</li>
  *   <li>{@code {tps}} — server TPS</li>
- *   <li>{@code {lp_prefix}} — LuckPerms prefix</li>
- *   <li>{@code {lp_suffix}} — LuckPerms suffix</li>
+ *   <li>{@code {server}} / {@code {server_id}} — display name and id of this server</li>
+ *   <li>{@code {lp_prefix}} / {@code {lp_suffix}} — LuckPerms prefix and suffix ({@code &c}, {@code &#rrggbb} work)</li>
+ *   <li>{@code {lp_group}} / {@code {lp_group_name}} — primary group and its display name</li>
+ *   <li>{@code {lp_weight}} — weight used for sorting</li>
+ *   <li>{@code {lp_meta:key}} — any LuckPerms meta value</li>
  * </ul>
+ *
+ * <h3>Tags</h3>
+ * <p>Every tag with a body needs a closing tag ({@code <gradient:#aaa:#bbb>text</gradient>}).
+ * An unclosed gradient runs to the end of the line.</p>
  *
  * <h3>Color formatting</h3>
  * <ul>
@@ -34,6 +41,11 @@ import java.util.List;
  * </ul>
  */
 public class TabListConfig {
+
+    /** Version of the default layout this file was written with. Used to upgrade old defaults. */
+    public int configVersion = CURRENT_VERSION;
+
+    private static final int CURRENT_VERSION = 2;
 
     /** Whether tab list customisation is enabled at all. */
     public boolean enabled = true;
@@ -46,12 +58,44 @@ public class TabListConfig {
 
     /**
      * Format for each player entry in the tab list.
-     * Placeholders: {player}, {name}, {lp_prefix}, {lp_suffix}, {ping}
+     * Placeholders: {player}, {name}, {lp_prefix}, {lp_suffix}, {lp_group}, {lp_group_name},
+     * {lp_weight}, {lp_meta:key}, {ping}, {afk_suffix}
      */
-    public String playerNameFormat = "{lp_prefix}{player}";
+    public String playerNameFormat = "{lp_prefix}{player}{lp_suffix}";
 
-    /** Header lines — each element is one line. Supports colour codes and placeholders. */
-    public List<String> header = List.of(
+    /**
+     * Per-group entry format, keyed by LuckPerms primary group name (lower case). Falls back to
+     * {@link #playerNameFormat}. Example: {@code "admin": "<red>[A] </red>{player}"}.
+     */
+    public java.util.Map<String, String> groupFormats = new java.util.LinkedHashMap<>();
+
+    /** Format for the group of the player, or the general one. */
+    public String formatFor(String group) {
+        if (group != null && !group.isEmpty() && groupFormats != null) {
+            String format = groupFormats.get(group.toLowerCase());
+            if (format != null && !format.isBlank()) return format;
+        }
+        return playerNameFormat;
+    }
+
+    private static final List<String> DEFAULT_HEADER = List.of(
+            "",
+            "<gradient:#5bc8f5:#ffffff:#a8ff78>✦ viaStyle ✦</gradient>",
+            "<gradient:#5bc8f5:#a8ff78>{server}</gradient>",
+            "",
+            "<dark_aqua>Players: <gradient:#a8ff78:#5bc8f5>{online}/{max}</gradient>  <dark_aqua>TPS: {tps}",
+            ""
+    );
+
+    private static final List<String> DEFAULT_FOOTER = List.of(
+            "",
+            "<gradient:#5bc8f5:#a8ff78>━━━━━━━━━━━━━━━━━━━━━━━━</gradient>",
+            "<gray>Ping: <gradient:#a8ff78:#5bc8f5>{ping}ms</gradient>  <dark_gray>•  <gray>MSPT: {mspt}",
+            ""
+    );
+
+    /** The layout shipped up to 3.0.0: gradient tags without a closing tag and a hard-coded mode. */
+    private static final List<String> OLD_DEFAULT_HEADER = List.of(
             "",
             "<gr:#5bc8f5:#ffffff:#a8ff78>    ✦ viaStyle ✦    ",
             "<gr:#5bc8f5:#a8ff78>┃ Server Network ┃",
@@ -60,14 +104,19 @@ public class TabListConfig {
             ""
     );
 
-    /** Footer lines — each element is one line. Supports colour codes and placeholders. */
-    public List<String> footer = List.of(
+    private static final List<String> OLD_DEFAULT_FOOTER = List.of(
             "",
             "<gr:#5bc8f5:#a8ff78>                                        ",
             "",
             "<gray>Ping: <gr:#a8ff78:#5bc8f5>{ping}ms<dark_gray>  •  <gray>Mode: <aqua>survival",
             ""
     );
+
+    /** Header lines — each element is one line. Supports colour codes and placeholders. */
+    public List<String> header = DEFAULT_HEADER;
+
+    /** Footer lines — each element is one line. Supports colour codes and placeholders. */
+    public List<String> footer = DEFAULT_FOOTER;
 
     /** Whether to show header and footer. */
     public boolean showHeader = true;
@@ -77,13 +126,18 @@ public class TabListConfig {
     //  I/O
     // ══════════════════════════════════════════════════════════════════════
 
-    private static final Path CONFIG_DIR = FabricLoader.getInstance()
-            .getConfigDir().resolve("viaStyle");
-    private static final Path CONFIG_PATH = CONFIG_DIR.resolve("tablist.json");
+    private static Path configDir() {
+        return FabricLoader.getInstance().getConfigDir().resolve("viaStyle");
+    }
+
+    private static Path configPath() {
+        return configDir().resolve("tablist.json");
+    }
 
     /** Pre-rename location. */
-    private static final Path OLD_CONFIG_PATH = FabricLoader.getInstance()
-            .getConfigDir().resolve("viamod").resolve("tablist.json");
+    private static Path oldConfigPath() {
+        return FabricLoader.getInstance().getConfigDir().resolve("viamod").resolve("tablist.json");
+    }
 
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
@@ -95,14 +149,14 @@ public class TabListConfig {
      */
     public static TabListConfig load() {
         try {
-            Files.createDirectories(CONFIG_DIR);
+            Files.createDirectories(configDir());
         } catch (IOException ignored) {}
 
-        if (!Files.exists(CONFIG_PATH)) {
+        if (!Files.exists(configPath())) {
             // Migrate from old viamod/ directory if it exists
-            if (Files.exists(OLD_CONFIG_PATH)) {
+            if (Files.exists(oldConfigPath())) {
                 try {
-                    Files.copy(OLD_CONFIG_PATH, CONFIG_PATH);
+                    Files.copy(oldConfigPath(), configPath());
                     viaStyle.LOGGER.info("[viaStyle] Migrated tablist.json from viamod/ folder.");
                 } catch (IOException e) {
                     viaStyle.LOGGER.warn("[viaStyle] Failed to migrate tablist.json: {}", e.getMessage());
@@ -110,19 +164,22 @@ public class TabListConfig {
             }
         }
 
-        if (!Files.exists(CONFIG_PATH)) {
+        if (!Files.exists(configPath())) {
             TabListConfig defaults = new TabListConfig();
             defaults.save();
-            viaStyle.LOGGER.info("[viaStyle] Created default tablist config: {}", CONFIG_PATH);
+            viaStyle.LOGGER.info("[viaStyle] Created default tablist config: {}", configPath());
             return defaults;
         }
 
         try {
-            String json = Files.readString(CONFIG_PATH);
+            String json = Files.readString(configPath());
             TabListConfig config = GSON.fromJson(json, TabListConfig.class);
             if (config == null) config = new TabListConfig();
+            // Files from before 3.1.0 have no version field and Gson would leave the default.
+            if (!json.contains("\"configVersion\"")) config.configVersion = 1;
+            config.upgrade();
             config.save(); // re-save to fill in new fields
-            viaStyle.LOGGER.info("[viaStyle] Tab list config loaded: {}", CONFIG_PATH);
+            viaStyle.LOGGER.info("[viaStyle] Tab list config loaded: {}", configPath());
             return config;
         } catch (Exception e) {
             viaStyle.LOGGER.warn("[viaStyle] Failed to load tablist.json: {} — using defaults.", e.getMessage());
@@ -130,11 +187,25 @@ public class TabListConfig {
         }
     }
 
+    /**
+     * Brings a file written by an older version up to date. Only layouts that are still the
+     * untouched old defaults are replaced; anything the admin edited stays as it is.
+     */
+    private void upgrade() {
+        if (groupFormats == null) groupFormats = new java.util.LinkedHashMap<>();
+        if (configVersion >= CURRENT_VERSION) return;
+        if (OLD_DEFAULT_HEADER.equals(header)) header = DEFAULT_HEADER;
+        if (OLD_DEFAULT_FOOTER.equals(footer)) footer = DEFAULT_FOOTER;
+        if ("{lp_prefix}{player}".equals(playerNameFormat)) playerNameFormat = "{lp_prefix}{player}{lp_suffix}";
+        configVersion = CURRENT_VERSION;
+        viaStyle.LOGGER.info("[viaStyle] tablist.json upgraded to layout version {}.", CURRENT_VERSION);
+    }
+
     /** Saves current settings to disk. */
     public void save() {
         try {
-            Files.createDirectories(CONFIG_DIR);
-            Files.writeString(CONFIG_PATH, GSON.toJson(this));
+            Files.createDirectories(configDir());
+            Files.writeString(configPath(), GSON.toJson(this));
         } catch (IOException e) {
             viaStyle.LOGGER.error("[viaStyle] Failed to save tablist.json: {}", e.getMessage());
         }

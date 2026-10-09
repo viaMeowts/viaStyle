@@ -23,25 +23,20 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
     // ── Custom PAPI placeholder registration ───────────────────────────────────
 
     /**
-     * Registers {@code %viastyle:online%} — the number of non-vanished players visible
-     * to the requesting player.  Vanished players (admins) see the true total count.
+     * Registers the viaStyle placeholders: {@code %viastyle:online%} (visible players, vanish-aware)
+     * and the LuckPerms ones {@code %viastyle:prefix%}, {@code %viastyle:suffix%},
+     * {@code %viastyle:group%}, {@code %viastyle:group_name%}, {@code %viastyle:weight%}.
      *
      * <p>Must be called once, after PAPI is confirmed to be loaded.</p>
      */
     public static void registerCustomPlaceholders() {
         try {
-            Class<?> identifierClass  = net.minecraft.resources.Identifier.class;
             Class<?> handlerClass     = Class.forName("eu.pb4.placeholders.api.PlaceholderHandler");
             Class<?> resultClass      = Class.forName("eu.pb4.placeholders.api.PlaceholderResult");
             Class<?> ctxClass         = Class.forName("eu.pb4.placeholders.api.PlaceholderContext");
             Class<?> placeholdersClass = Class.forName("eu.pb4.placeholders.api.Placeholders");
 
-            Object id = net.minecraft.resources.Identifier.fromNamespaceAndPath("viastyle", "online");
-
-            // Locate PlaceholderResult.value(Text)
             final Method valueMethod = resultClass.getMethod("value", Component.class);
-
-            // Locate PlaceholderContext.getPlayer() and .getServer()
             Method gpm = null;
             for (String name : new String[]{"getPlayer", "player"}) {
                 try { gpm = ctxClass.getMethod(name); break; } catch (NoSuchMethodException ignored) {}
@@ -52,48 +47,52 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
             }
             final Method getPlayerMethod = gpm;
             final Method getServerMethod = gsm;
+            Method register = placeholdersClass.getMethod("register",
+                    net.minecraft.resources.Identifier.class, handlerClass);
 
-            // Build a Proxy for the PlaceholderHandler functional interface
-            Object handler = Proxy.newProxyInstance(
-                handlerClass.getClassLoader(),
-                new Class<?>[]{ handlerClass },
-                (proxy, method, methodArgs) -> {
-                    if (method.getDeclaringClass() == Object.class) return null;
-                    if (!"handle".equals(method.getName())) return null;
-                    try {
-                        Object ctx = methodArgs[0];  // PlaceholderContext
+            java.util.Map<String, java.util.function.BiFunction<ServerPlayer, net.minecraft.server.MinecraftServer, Component>> all =
+                    new java.util.LinkedHashMap<>();
+            all.put("online", (player, server) ->
+                    Component.literal(String.valueOf(VanishHelper.countVisiblePlayers(server, player))));
+            all.put("prefix", (player, server) -> lpText(player, LuckPermsHelper.Info::prefix, true));
+            all.put("suffix", (player, server) -> lpText(player, LuckPermsHelper.Info::suffix, true));
+            all.put("group", (player, server) -> lpText(player, LuckPermsHelper.Info::group, false));
+            all.put("group_name", (player, server) -> lpText(player, LuckPermsHelper.Info::groupName, false));
+            all.put("weight", (player, server) -> lpText(player, i -> String.valueOf(i.weight()), false));
 
-                        // Resolve player (may return ServerPlayerEntity or null)
-                        ServerPlayer player = null;
-                        if (getPlayerMethod != null) {
-                            Object raw = getPlayerMethod.invoke(ctx);
-                            if (raw instanceof ServerPlayer sp) player = sp;
+            for (var entry : all.entrySet()) {
+                Object handler = Proxy.newProxyInstance(
+                    handlerClass.getClassLoader(),
+                    new Class<?>[]{ handlerClass },
+                    (proxy, method, methodArgs) -> {
+                        if (method.getDeclaringClass() == Object.class) return null;
+                        if (!"handle".equals(method.getName())) return null;
+                        try {
+                            Object ctx = methodArgs[0];
+                            ServerPlayer player = null;
+                            if (getPlayerMethod != null && getPlayerMethod.invoke(ctx) instanceof ServerPlayer sp) player = sp;
+                            net.minecraft.server.MinecraftServer server = null;
+                            if (getServerMethod != null && getServerMethod.invoke(ctx) instanceof net.minecraft.server.MinecraftServer ms) server = ms;
+                            if (server == null) server = PlaceholderHelper.getServer();
+                            return valueMethod.invoke(null, entry.getValue().apply(player, server));
+                        } catch (Throwable t) {
+                            return valueMethod.invoke(null, Component.literal("?"));
                         }
-
-                        // Resolve server
-                        net.minecraft.server.MinecraftServer server = null;
-                        if (getServerMethod != null) {
-                            Object raw = getServerMethod.invoke(ctx);
-                            if (raw instanceof net.minecraft.server.MinecraftServer ms) server = ms;
-                        }
-                        if (server == null) server = PlaceholderHelper.getServer();
-
-                        int count = VanishHelper.countVisiblePlayers(server, player);
-                        return valueMethod.invoke(null, Component.literal(String.valueOf(count)));
-                    } catch (Throwable t) {
-                        return valueMethod.invoke(null, Component.literal("?"));
-                    }
-                }
-            );
-
-            // Placeholders.register(id, handler)
-            placeholdersClass.getMethod("register", identifierClass, handlerClass)
-                             .invoke(null, id, handler);
-
-            viaStyle.LOGGER.info("[viaStyle] Registered PAPI placeholder %viastyle:online%");
+                    });
+                register.invoke(null, net.minecraft.resources.Identifier.fromNamespaceAndPath("viastyle", entry.getKey()), handler);
+            }
+            viaStyle.LOGGER.info("[viaStyle] Registered PAPI placeholders %viastyle:{}%", String.join("%, %viastyle:", all.keySet()));
         } catch (Throwable t) {
-            viaStyle.LOGGER.warn("[viaStyle] Failed to register %viastyle:online% placeholder: {}", t.getMessage());
+            viaStyle.LOGGER.warn("[viaStyle] Failed to register viastyle placeholders: {}", t.getMessage());
         }
+    }
+
+    private static Component lpText(ServerPlayer player,
+                                    java.util.function.Function<LuckPermsHelper.Info, String> field,
+                                    boolean formatted) {
+        if (player == null) return Component.empty();
+        String value = field.apply(LuckPermsHelper.info(player.getUUID()));
+        return formatted ? TabListManager.parseLegacyAndHex(value) : Component.literal(value);
     }
 
     public PapiPlaceholderProvider() throws ReflectiveOperationException {
@@ -133,54 +132,6 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
     }
 
     /**
-     * Converts legacy {@code §X} colour/format codes into
-     * Patbox Simplified Text Format tags that {@code TextParserUtils} understands.
-     */
-    static String sectionToMiniMessage(String input) {
-        if (input == null || input.isEmpty()) return input;
-        StringBuilder out = new StringBuilder(input.length() + 32);
-        int len = input.length();
-        for (int i = 0; i < len; i++) {
-            char c = input.charAt(i);
-            if (c == '§' && i + 1 < len) {
-                char code = Character.toLowerCase(input.charAt(i + 1));
-                String tag = switch (code) {
-                    case '0' -> "<black>";
-                    case '1' -> "<dark_blue>";
-                    case '2' -> "<dark_green>";
-                    case '3' -> "<dark_aqua>";
-                    case '4' -> "<dark_red>";
-                    case '5' -> "<dark_purple>";
-                    case '6' -> "<gold>";
-                    case '7' -> "<gray>";
-                    case '8' -> "<dark_gray>";
-                    case '9' -> "<blue>";
-                    case 'a' -> "<green>";
-                    case 'b' -> "<aqua>";
-                    case 'c' -> "<red>";
-                    case 'd' -> "<light_purple>";
-                    case 'e' -> "<yellow>";
-                    case 'f' -> "<white>";
-                    case 'l' -> "<bold>";
-                    case 'm' -> "<strikethrough>";
-                    case 'n' -> "<underlined>";
-                    case 'o' -> "<italic>";
-                    case 'k' -> "<obfuscated>";
-                    case 'r' -> "<reset>";
-                    default  -> null;
-                };
-                if (tag != null) {
-                    out.append(tag);
-                    i++; // skip the code char
-                    continue;
-                }
-            }
-            out.append(c);
-        }
-        return out.toString();
-    }
-
-    /**
      * Full pipeline:
      * <ol>
     *   <li>Convert {@code §X} legacy codes → Patbox MiniMessage tags</li>
@@ -195,7 +146,7 @@ public class PapiPlaceholderProvider implements PlaceholderProvider {
             input = normalizePercentAliasSyntax(input);
 
             // Step 1: convert §-codes → <tags>
-            String converted = sectionToMiniMessage(input);
+            String converted = LegacyText.sectionsToMiniTags(input);
 
             // Step 2: build placeholder context (player or server fallback)
             Object ctx = null;

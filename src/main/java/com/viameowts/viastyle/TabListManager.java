@@ -10,6 +10,7 @@ import net.minecraft.network.protocol.game.ClientboundTabListPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
+import com.viameowts.viastyle.network.Network;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.ArrayList;
@@ -32,6 +33,8 @@ public final class TabListManager {
 
     private static TabListConfig config;
     private static int tickCounter = 0;
+    /** Set when LuckPerms data changed: the next tick re-sorts and refreshes everyone once. */
+    private static volatile boolean fullRefreshRequested = false;
 
     private TabListManager() {}
 
@@ -43,6 +46,11 @@ public final class TabListManager {
     /** Returns the current tab list config. */
     public static TabListConfig getConfig() {
         return config;
+    }
+
+    /** Asks for one full refresh (names, sort order, header and footer) on the next tick. */
+    public static void requestFullRefresh() {
+        fullRefreshRequested = true;
     }
 
     /** Reload config from disk. */
@@ -61,6 +69,12 @@ public final class TabListManager {
     public static void onTick(MinecraftServer server) {
         PlaceholderHelper.setServer(server);
         if (config == null || !config.enabled) return;
+        if (fullRefreshRequested) {
+            fullRefreshRequested = false;
+            tickCounter = 0;
+            updateAll(server);
+            return;
+        }
         if (config.updateIntervalTicks <= 0) return;
 
         tickCounter++;
@@ -161,7 +175,7 @@ public final class TabListManager {
         // and guarantees every comparison uses the exact same value.
         Map<UUID, Integer> weights = new HashMap<>(players.size() * 2);
         for (ServerPlayer p : players) {
-            weights.put(p.getUUID(), LuckPermsHelper.getGroupWeight(p.getUUID()));
+            weights.put(p.getUUID(), LuckPermsHelper.info(p.getUUID()).weight());
         }
 
         // Sort: spectators last (if enabled), then weight descending, then name ascending.
@@ -247,15 +261,15 @@ public final class TabListManager {
      * placeholders are simple string replacements.</p>
      */
     private static Component formatPlayerName(ServerPlayer player) {
-        String format = config.playerNameFormat;
+        LuckPermsHelper.Info lp = LuckPermsHelper.info(player.getUUID());
+        String format = config.formatFor(lp.group());
         if (format == null || format.isEmpty()) format = "{player}";
 
         // Replace simple placeholders first (not {player})
         String processed = format;
         processed = replaceToken(processed, "name", player.getName().getString());
         processed = replaceToken(processed, "ping", String.valueOf(getPlayerPing(player)));
-        processed = replaceToken(processed, "lp_prefix", legacySectionToMiniTags(LuckPermsHelper.getPrefix(player.getUUID())));
-        processed = replaceToken(processed, "lp_suffix", legacySectionToMiniTags(LuckPermsHelper.getSuffix(player.getUUID())));
+        processed = replaceLuckPerms(processed, player, lp);
         processed = replaceToken(processed, "afk_suffix", getAfkSuffix(player));
 
         // Handle {player} — inject coloured text
@@ -264,6 +278,30 @@ public final class TabListManager {
         }
 
         return PlaceholderHelper.parseFormat(processed, player);
+    }
+
+    private static final java.util.regex.Pattern LP_META = java.util.regex.Pattern.compile(
+            "[{%]lp_meta:([A-Za-z0-9_.\\-]+)[}%]");
+
+    /**
+     * Fills the LuckPerms tokens: {@code {lp_prefix}}, {@code {lp_suffix}}, {@code {lp_group}},
+     * {@code {lp_group_name}} (display name), {@code {lp_weight}} and {@code {lp_meta:key}}.
+     */
+    private static String replaceLuckPerms(String input, ServerPlayer player, LuckPermsHelper.Info lp) {
+        String result = input;
+        result = replaceToken(result, "lp_prefix", lp.prefix());
+        result = replaceToken(result, "lp_suffix", lp.suffix());
+        result = replaceToken(result, "lp_group_name", lp.groupName());
+        result = replaceToken(result, "lp_group", lp.group());
+        result = replaceToken(result, "lp_weight", String.valueOf(lp.weight()));
+        if (result.contains("lp_meta:")) {
+            result = LP_META.matcher(result).replaceAll(m -> {
+                String value = LuckPermsHelper.getMetaValue(player.getUUID(), m.group(1));
+                return java.util.regex.Matcher.quoteReplacement(
+                        value == null ? "" : LegacyText.toMiniTags(value));
+            });
+        }
+        return result;
     }
 
     private static String getAfkSuffix(ServerPlayer player) {
@@ -331,10 +369,9 @@ public final class TabListManager {
         result = replaceToken(result, "ping", String.valueOf(getPlayerPing(player)));
         result = replaceToken(result, "tps", formatTps(server));
         result = replaceToken(result, "mspt", formatMspt(server));
-        result = replaceToken(result, "lp_prefix", legacySectionToMiniTags(
-            LuckPermsHelper.getPrefix(player.getUUID())));
-        result = replaceToken(result, "lp_suffix", legacySectionToMiniTags(
-            LuckPermsHelper.getSuffix(player.getUUID())));
+        result = replaceToken(result, "server", Network.serverDisplayName());
+        result = replaceToken(result, "server_id", Network.serverId());
+        result = replaceLuckPerms(result, player, LuckPermsHelper.info(player.getUUID()));
 
         return result;
     }
@@ -349,50 +386,6 @@ public final class TabListManager {
         private static boolean containsPlayerToken(String input) {
         return input.contains("{player}") || input.contains("%player%");
         }
-
-    private static String legacySectionToMiniTags(String input) {
-        if (input == null) return "";
-        StringBuilder out = new StringBuilder(input.length() + 32);
-        int len = input.length();
-        for (int i = 0; i < len; i++) {
-            char c = input.charAt(i);
-            if (c == '§' && i + 1 < len) {
-                char code = Character.toLowerCase(input.charAt(i + 1));
-                String tag = switch (code) {
-                    case '0' -> "<black>";
-                    case '1' -> "<dark_blue>";
-                    case '2' -> "<dark_green>";
-                    case '3' -> "<dark_aqua>";
-                    case '4' -> "<dark_red>";
-                    case '5' -> "<dark_purple>";
-                    case '6' -> "<gold>";
-                    case '7' -> "<gray>";
-                    case '8' -> "<dark_gray>";
-                    case '9' -> "<blue>";
-                    case 'a' -> "<green>";
-                    case 'b' -> "<aqua>";
-                    case 'c' -> "<red>";
-                    case 'd' -> "<light_purple>";
-                    case 'e' -> "<yellow>";
-                    case 'f' -> "<white>";
-                    case 'l' -> "<bold>";
-                    case 'm' -> "<strikethrough>";
-                    case 'n' -> "<underlined>";
-                    case 'o' -> "<italic>";
-                    case 'k' -> "<obfuscated>";
-                    case 'r' -> "<reset>";
-                    default -> null;
-                };
-                if (tag != null) {
-                    out.append(tag);
-                    i++;
-                    continue;
-                }
-            }
-            out.append(c);
-        }
-        return out.toString();
-    }
 
     private static int getPlayerPing(ServerPlayer player) {
         try {
@@ -449,19 +442,19 @@ public final class TabListManager {
         // Pre-process: handle MiniMessage tags that wrap content
         // We process from the inside out to handle nesting
 
-        return parseMiniAndLegacy(input);
+        return parseMiniAndLegacy(input, Style.EMPTY);
     }
 
     /**
      * Full parser that handles MiniMessage tags + legacy codes.
      */
-    private static MutableComponent parseMiniAndLegacy(String input) {
+    private static MutableComponent parseMiniAndLegacy(String input, Style baseStyle) {
         MutableComponent result = Component.empty();
 
         int i = 0;
         int len = input.length();
         StringBuilder buf = new StringBuilder();
-        Style currentStyle = Style.EMPTY;
+        Style currentStyle = baseStyle;
 
         while (i < len) {
             char c = input.charAt(i);
@@ -484,16 +477,13 @@ public final class TabListManager {
                         String gradientSpec = lowerTag.startsWith("gr:")
                                 ? tagContent.substring("gr:".length())
                                 : tagContent.substring("gradient:".length());
+                        // A missing closing tag means "until the end", like in MiniMessage.
                         ClosingTagMatch endTag = findClosingTagMatch(input, closeAngle + 1, "gradient", "gr");
-                        if (endTag != null) {
-                            String innerText = input.substring(closeAngle + 1, endTag.index());
-                            // Parse inner text for legacy codes first, then apply gradient
-                            String plainInner = stripCodes(innerText);
-                            result.append(applyGradientToText(plainInner, gradientSpec, currentStyle));
-                            i = endTag.index() + endTag.length();
-                            continue;
-                        }
-                        // No closing tag — treat as literal
+                        int innerEnd = endTag != null ? endTag.index() : len;
+                        MutableComponent inner = parseMiniAndLegacy(input.substring(closeAngle + 1, innerEnd), currentStyle);
+                        result.append(applyGradient(inner, gradientSpec));
+                        i = endTag != null ? endTag.index() + endTag.length() : len;
+                        continue;
                     }
 
                     // ── <shadow> / <shadow:#RRGGBB> — persistent or wrapping ──────
@@ -519,7 +509,7 @@ public final class TabListManager {
                         if (endShadow != -1) {
                             // Wrapping mode
                             String innerText = input.substring(closeAngle + 1, endShadow);
-                            result.append(parseLegacyPortion(innerText, currentStyle.withShadowColor(shadowArgb)));
+                            result.append(parseMiniAndLegacy(innerText, currentStyle.withShadowColor(shadowArgb)));
                             i = endShadow + "</shadow>".length();
                         } else {
                             // Persistent mode — shadow stays active going forward
@@ -613,7 +603,7 @@ public final class TabListManager {
                             result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                             buf.setLength(0);
                         }
-                        currentStyle = Style.EMPTY;
+                        currentStyle = baseStyle;
                         i = closeAngle + 1;
                         continue;
                     }
@@ -630,7 +620,7 @@ public final class TabListManager {
                         result.append(Component.literal(buf.toString()).setStyle(currentStyle));
                         buf.setLength(0);
                     }
-                    currentStyle = Style.EMPTY.withColor(tc);
+                    currentStyle = baseStyle.withColor(tc);
                     i += 7;
                     continue;
                 }
@@ -646,121 +636,7 @@ public final class TabListManager {
                         buf.setLength(0);
                     }
                     if (fmt == ChatFormatting.RESET) {
-                        currentStyle = Style.EMPTY;
-                    } else if (TextColor.fromLegacyFormat(fmt) != null) {
-                        currentStyle = Style.EMPTY.withColor(fmt);
-                    } else {
-                        currentStyle = applyModifier(currentStyle, fmt);
-                    }
-                    i += 2;
-                    continue;
-                }
-            }
-
-            buf.append(c);
-            i++;
-        }
-
-        if (buf.length() > 0) {
-            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
-        }
-
-        return result;
-    }
-
-    /**
-     * Parses a portion of text with legacy codes, starting from a given style.
-     * Used after a MiniMessage tag has set up a base style (e.g. shadow).
-     */
-    private static MutableComponent parseLegacyPortion(String input, Style baseStyle) {
-        MutableComponent result = Component.empty();
-        StringBuilder buf = new StringBuilder();
-        Style currentStyle = baseStyle;
-
-        int i = 0;
-        while (i < input.length()) {
-            char c = input.charAt(i);
-
-            // Nested MiniMessage tags
-            if (c == '<') {
-                int closeAngle = input.indexOf('>', i);
-                if (closeAngle > i) {
-                    String tagContent = input.substring(i + 1, closeAngle).toLowerCase();
-
-                    // <gradient:...> or <gr:...>text</gradient|gr> inside shadow
-                    if (tagContent.startsWith("gradient:") || tagContent.startsWith("gr:")) {
-                        if (buf.length() > 0) {
-                            result.append(Component.literal(buf.toString()).setStyle(currentStyle));
-                            buf.setLength(0);
-                        }
-                        String gradientSpec = tagContent.startsWith("gr:")
-                                ? tagContent.substring("gr:".length())
-                                : tagContent.substring("gradient:".length());
-                        ClosingTagMatch endTag = findClosingTagMatch(input, closeAngle + 1, "gradient", "gr");
-                        if (endTag != null) {
-                            String innerText = stripCodes(input.substring(closeAngle + 1, endTag.index()));
-                            result.append(applyGradientToText(innerText, gradientSpec, currentStyle));
-                            i = endTag.index() + endTag.length();
-                            continue;
-                        }
-                    }
-
-                    // <#RRGGBB>
-                    if (tagContent.startsWith("#") && tagContent.length() == 7) {
-                        TextColor tc = parseHex(tagContent);
-                        if (tc != null) {
-                            if (buf.length() > 0) {
-                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
-                                buf.setLength(0);
-                            }
-                            currentStyle = currentStyle.withColor(tc);
-                            i = closeAngle + 1;
-                            continue;
-                        }
-                    }
-
-                    // Named Minecraft colour in parseLegacyPortion (<dark_green>, <red>, etc.)
-                    try {
-                        ChatFormatting namedFmtP = ChatFormatting.valueOf(tagContent.toUpperCase());
-                        if (TextColor.fromLegacyFormat(namedFmtP) != null) {
-                            if (buf.length() > 0) {
-                                result.append(Component.literal(buf.toString()).setStyle(currentStyle));
-                                buf.setLength(0);
-                            }
-                            currentStyle = currentStyle.withColor(TextColor.fromLegacyFormat(namedFmtP));
-                            i = closeAngle + 1;
-                            continue;
-                        }
-                    } catch (IllegalArgumentException ignored) {}
-                }
-            }
-
-            // #RRGGBB
-            if (c == '#' && i + 6 < input.length()) {
-                String hex = input.substring(i, i + 7);
-                TextColor tc = parseHex(hex);
-                if (tc != null) {
-                    if (buf.length() > 0) {
-                        result.append(Component.literal(buf.toString()).setStyle(currentStyle));
-                        buf.setLength(0);
-                    }
-                    currentStyle = currentStyle.withColor(tc);
-                    i += 7;
-                    continue;
-                }
-            }
-
-            // §X
-            if (c == '§' && i + 1 < input.length()) {
-                char code = input.charAt(i + 1);
-                ChatFormatting fmt = ChatFormatting.getByCode(code);
-                if (fmt != null) {
-                    if (buf.length() > 0) {
-                        result.append(Component.literal(buf.toString()).setStyle(currentStyle));
-                        buf.setLength(0);
-                    }
-                    if (fmt == ChatFormatting.RESET) {
-                        currentStyle = baseStyle; // reset to base, not EMPTY (keep shadow etc.)
+                        currentStyle = baseStyle;
                     } else if (TextColor.fromLegacyFormat(fmt) != null) {
                         currentStyle = baseStyle.withColor(fmt);
                     } else {
@@ -813,41 +689,39 @@ public final class TabListManager {
     private record ClosingTagMatch(int index, int length) {}
 
     /**
-     * Applies a per-character gradient to plain text.
-     * The gradient spec is like {@code #ff0000:#00ff00} (colon-separated hex stops).
-     * Extra style (e.g. shadow) from {@code baseStyle} is preserved on each character.
+     * Recolours already parsed text with a per-character gradient. Other style parts of the
+     * text (bold, italic, shadow...) are kept. The spec is colon-separated hex stops such as
+     * {@code #ff0000:#00ff00}; with fewer than two valid stops the text is left as it is.
      */
-    private static MutableComponent applyGradientToText(String text, String gradientSpec, Style baseStyle) {
-        String[] parts = gradientSpec.split(":");
-        // Collect colour stops
-        java.util.List<Integer> stops = new java.util.ArrayList<>();
-        for (String p : parts) {
-            String hex = p.trim();
+    private static MutableComponent applyGradient(MutableComponent inner, String spec) {
+        List<Integer> stops = new ArrayList<>();
+        for (String part : spec.split(":")) {
+            String hex = part.trim();
             if (!hex.startsWith("#")) hex = "#" + hex;
             TextColor tc = parseHex(hex);
             if (tc != null) stops.add(tc.getValue());
         }
-        if (stops.size() < 2) {
-            // Fallback: single colour or invalid
-            return Component.literal(text).setStyle(
-                    stops.isEmpty() ? baseStyle
-                            : baseStyle.withColor(TextColor.fromRgb(stops.getFirst())));
-        }
+        if (stops.size() < 2) return inner;
 
+        List<String> chars = new ArrayList<>();
+        List<Style> styles = new ArrayList<>();
+        inner.<Object>visit((style, text) -> {
+            text.codePoints().forEach(cp -> {
+                chars.add(new String(Character.toChars(cp)));
+                styles.add(style);
+            });
+            return java.util.Optional.empty();
+        }, Style.EMPTY);
+
+        int count = chars.size();
+        if (count == 0) return Component.empty();
         int[] colors = stops.stream().mapToInt(Integer::intValue).toArray();
-        int textLen = text.length();
-        if (textLen == 0) return Component.empty().copy();
-        if (textLen == 1) {
-            return Component.literal(text).setStyle(
-                    baseStyle.withColor(TextColor.fromRgb(colors[0])));
-        }
-
         MutableComponent result = Component.empty();
-        for (int ci = 0; ci < textLen; ci++) {
-            float progress = (float) ci / (textLen - 1);
+        for (int ci = 0; ci < count; ci++) {
+            float progress = count == 1 ? 0f : (float) ci / (count - 1);
             int rgb = interpolateMulti(colors, progress);
-            Style charStyle = baseStyle.withColor(TextColor.fromRgb(rgb));
-            result.append(Component.literal(String.valueOf(text.charAt(ci))).setStyle(charStyle));
+            result.append(Component.literal(chars.get(ci))
+                    .setStyle(styles.get(ci).withColor(TextColor.fromRgb(rgb))));
         }
         return result;
     }
@@ -863,31 +737,6 @@ public final class TabListManager {
         int seg = Math.min((int) scaled, segments - 1);
         float local = scaled - seg;
         return lerpColor(colors[seg], colors[seg + 1], local);
-    }
-
-    /**
-    * Strips §-codes and #RRGGBB from text, returning plain characters.
-     */
-    private static String stripCodes(String input) {
-        // Strip MiniMessage-style tags (<dark_green>, <gradient:…>, </bold>, etc.)
-        // so they don't appear as literal characters inside gradient text.
-        String work = input.replaceAll("</?[a-zA-Z0-9#_:]+>", "");
-        StringBuilder sb = new StringBuilder();
-        int i = 0;
-        while (i < work.length()) {
-            char c = work.charAt(i);
-            if (c == '§' && i + 1 < work.length()) {
-                ChatFormatting fmt = ChatFormatting.getByCode(work.charAt(i + 1));
-                if (fmt != null) { i += 2; continue; }
-            }
-            if (c == '#' && i + 6 < work.length()) {
-                TextColor tc = parseHex(work.substring(i, i + 7));
-                if (tc != null) { i += 7; continue; }
-            }
-            sb.append(c);
-            i++;
-        }
-        return sb.toString();
     }
 
     /**
