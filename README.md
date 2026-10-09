@@ -131,10 +131,13 @@ Orphan TextDisplay entities are automatically cleaned up by a periodic scan.
 
 Custom header, footer, and player name format configured in `config/viaStyle/tablist.json`. Supports:
 
-- `{name}`, `{ping}`, `{online}`, `{max}`, `{tps}`, `{mspt}`
-- `{lp_prefix}`, `{lp_suffix}`, `{afk_suffix}`
+- `{name}`, `{ping}`, `{online}`, `{max}`, `{tps}`, `{mspt}`, `{server}`, `{server_id}`
+- `{lp_prefix}`, `{lp_suffix}`, `{lp_group}`, `{lp_group_name}`, `{lp_weight}`, `{lp_meta:key}`, `{afk_suffix}`
 - `%player_health%`, `%server_tps_15%` and any PlaceholderAPI token
 - Per-viewer vanish-aware player count
+- Per-group entry formats: `groupFormats` in `tablist.json` maps a LuckPerms primary group to its own format (falls back to `playerNameFormat`)
+
+Every tag with a body needs a closing tag (`<gradient:#aaa:#bbb>text</gradient>`). A gradient without one runs to the end of the line. Files written by older versions are upgraded on load: the untouched old default header and footer are replaced, edited ones are left alone (`configVersion` in the file).
 
 Sorting modes: `normal` (higher LP weight = lower), `reverse` (higher = higher), `none`. Spectators can be pushed to the bottom.
 
@@ -189,7 +192,7 @@ Discord messages mentioning `@MinecraftName` trigger an in-game ping (sound + ac
 |---|---|
 | PlaceholderAPI | `%placeholder%` tokens in format strings, tab list, join/leave |
 | BanHammer | Muted/banned players blocked from chatting and PMs |
-| LuckPerms | Prefix/suffix lookup, weight-based tab sorting, permission checks |
+| LuckPerms | Prefix/suffix (`&c`, `&#rrggbb`, `§` codes), primary group and display name, `weight`-based tab sorting, meta (`nickcolor`, `{lp_meta:key}`), permission checks, live refresh of tab and nametag on any `/lp` change |
 | Carpet | HUD logger suppression in tab list |
 | melius-vanish | Vanished players hidden from tab, nametags, PM suggestions |
 
@@ -527,8 +530,9 @@ viaStyle registers 19 configuration sections in `/viapanel`:
 | `{message}` | Message content (with `[item]`/`[pos]`/etc. expanded) |
 | `{prefix}` | Channel prefix tag |
 | `{timestamp}` | Timestamp (empty when disabled) |
-| `{lp_prefix}` | LuckPerms prefix (MiniMessage) |
-| `{lp_suffix}` | LuckPerms suffix (MiniMessage) |
+| `{lp_prefix}` | LuckPerms prefix |
+| `{lp_suffix}` | LuckPerms suffix |
+| `{lp_group}` / `{lp_group_name}` | LuckPerms primary group / its display name |
 | `%papi_token%` | Any PlaceholderAPI token (requires PAPI) |
 
 ### Tab list tokens
@@ -541,8 +545,11 @@ viaStyle registers 19 configuration sections in `/viapanel`:
 | `{max}` | Server max players |
 | `{tps}` | Server TPS (colored) |
 | `{mspt}` | Server MSPT (colored) |
-| `{lp_prefix}` | LuckPerms prefix |
-| `{lp_suffix}` | LuckPerms suffix |
+| `{server}` / `{server_id}` | Display name / id of this server |
+| `{lp_prefix}` / `{lp_suffix}` | LuckPerms prefix / suffix |
+| `{lp_group}` / `{lp_group_name}` | Primary group / its display name |
+| `{lp_weight}` | Weight used for tab sorting |
+| `{lp_meta:key}` | Any LuckPerms meta value |
 | `{afk_suffix}` | AFK suffix (empty when not AFK or suffix disabled) |
 | `{player}` | Player name with nick colour applied (for `playerNameFormat` only) |
 | `%papi_token%` | Any PlaceholderAPI token |
@@ -576,13 +583,17 @@ viaStyle registers 19 configuration sections in `/viapanel`:
 | `[inv]` | Share inventory (hover shows GUI) |
 | `[ec]` | Share ender chest (hover shows GUI) |
 
+### PlaceholderAPI placeholders from viaStyle
+
+`%viastyle:online%`, `%viastyle:prefix%`, `%viastyle:suffix%`, `%viastyle:group%`, `%viastyle:group_name%`, `%viastyle:weight%` (the last four need LuckPerms).
+
 ### Colour Formats
 
 All colour fields support:
 - Named colours: `red`, `gold`, `light_purple`, etc.
 - Hex: `#FF5555`, `#98FB98`
 - Gradients: `<gradient:#ff0000:#ffaa00>text</gradient>` (MiniMessage)
-- Legacy: `&c` `&6` `&#FF5555` (auto-converted to MiniMessage)
+- Legacy `&c`, `&#FF5555`, `&x&f&f&5&5&5&5` and `§` codes are converted in LuckPerms prefixes and suffixes
 
 ---
 

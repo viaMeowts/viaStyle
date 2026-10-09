@@ -28,7 +28,7 @@ public class ChatHandler {
 
     /**
      * Matches any {@code {token_name}} placeholder inside a format string.
-     * Known tokens: timestamp, prefix, name, message, lp_prefix, lp_suffix.
+     * Known tokens: timestamp, prefix, name, message, lp_prefix, lp_suffix, lp_group, lp_group_name.
      * Unknown tokens are kept as literal text.
      */
     private static final Pattern TOKEN = Pattern.compile("\\{(\\w+)\\}");
@@ -366,8 +366,11 @@ public class ChatHandler {
         Map<String, Component> tokens = new LinkedHashMap<>();
         tokens.put("timestamp",  buildTimestamp(cfg));
         tokens.put("prefix",     colored(prefix, prefixColor));
-        tokens.put("lp_prefix",  parseLegacyColors(LuckPermsHelper.getPrefix(sender.getUUID())));
-        tokens.put("lp_suffix",  parseLegacyColors(LuckPermsHelper.getSuffix(sender.getUUID())));
+        LuckPermsHelper.Info lp = LuckPermsHelper.info(sender.getUUID());
+        tokens.put("lp_prefix",  parseLegacyColors(lp.prefix()));
+        tokens.put("lp_suffix",  parseLegacyColors(lp.suffix()));
+        tokens.put("lp_group",   Component.literal(lp.group()));
+        tokens.put("lp_group_name", Component.literal(lp.groupName()));
         tokens.put("server",     colored(Network.serverDisplayName(), cfg.getServerTagColor()));
         tokens.put("server_tag", Network.enabled()
                 ? colored(" (" + Network.serverDisplayName() + ")", cfg.getServerTagColor())

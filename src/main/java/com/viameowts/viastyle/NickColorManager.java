@@ -10,7 +10,6 @@ import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,10 +52,6 @@ public final class NickColorManager {
     /** UUID → resolved colour spec (cached, from LP or file). */
     private static final Map<UUID, String> cache = new ConcurrentHashMap<>();
 
-    // ── LuckPerms reflection handles ───────────────────────────────────────
-    private static Method getPermissionMapMethod;
-    private static boolean lpEnumerationEnabled = false;
-
     private NickColorManager() {}
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -66,7 +61,6 @@ public final class NickColorManager {
     public static void init() {
         migrateOldFile();
         loadFile();
-        initLpEnumeration();
     }
 
     private static void migrateOldFile() {
@@ -106,18 +100,6 @@ public final class NickColorManager {
                     viaStyle.LOGGER.warn("[viaStyle] Failed to migrate nickcolors.json: {}", e.getMessage());
                 }
             }
-        }
-    }
-
-    private static void initLpEnumeration() {
-        try {
-            Class<?> cachedPermClass = Class.forName(
-                    "net.luckperms.api.cacheddata.CachedPermissionData");
-            getPermissionMapMethod = cachedPermClass.getMethod("getPermissionMap");
-            lpEnumerationEnabled = true;
-            viaStyle.LOGGER.info("[viaStyle] NickColor: LuckPerms permission enumeration enabled.");
-        } catch (Throwable ignored) {
-            viaStyle.LOGGER.info("[viaStyle] NickColor: LuckPerms enumeration unavailable — using file overrides only.");
         }
     }
 
@@ -235,7 +217,6 @@ public final class NickColorManager {
     /** Legacy prefix kept for backward-compatibility with existing LP setups. */
     private static final String LEGACY_PERM_PREFIX = "viamod.nickcolor.";
 
-    @SuppressWarnings("unchecked")
     private static String resolveFromLp(UUID uuid) {
         if (!LuckPermsHelper.isAvailable()) return null;
 
@@ -252,21 +233,9 @@ public final class NickColorManager {
         // NOTE: getPermissionMap() includes inherited permissions, so if a player's
         // group AND its parent group both have viastyle.nickcolor.* nodes, the result
         // is non-deterministic. Use LP meta (above) for reliable per-group colours.
-        if (!lpEnumerationEnabled) return null;
+        Map<String, Boolean> permMap = LuckPermsHelper.getPermissionMap(uuid);
+        if (permMap == null) return null;
         try {
-            // Walk the LP reflection chain to get CachedPermissionData
-            Object api         = LuckPermsHelper.getApi();
-            if (api == null) return null;
-            Object userManager = LuckPermsHelper.getUserManager(api);
-            Object user        = LuckPermsHelper.getUser(userManager, uuid);
-            if (user == null) return null;
-            Object cachedData  = LuckPermsHelper.getCachedData(user);
-            Object permData    = LuckPermsHelper.getPermissionData(cachedData);
-            if (permData == null) return null;
-
-            Map<String, Boolean> permMap = (Map<String, Boolean>)
-                    getPermissionMapMethod.invoke(permData);
-
             String legacySpec = null;
             for (var entry : permMap.entrySet()) {
                 if (!Boolean.TRUE.equals(entry.getValue())) continue;
